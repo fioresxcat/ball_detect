@@ -1,0 +1,25 @@
+,film_3_layers,rgcn_2_layers,rgcn_3_layers,lmv3_10_invoices, total,lmv3_10_invoices_limit_30,lmv3_10_invoices_limit_30
+fujimart_val,6,5,7,4,699,7,7
+fujimart_test,15,14,12,5,737,5,5
+emart_val,99,25,32,14,2478,14,16
+emart_test,65,12,5,4,2120,11,8
+tgs_val,5,5,7,3,1855,3,3
+tgs_test,2,4,2,0,1821,0,0
+lotte-drop-0.4_val,29,24,12,9,5884,6,7
+lotte-drop-0.4_test,35,39,33,12,7072,21,12
+brg_val,2,4,5,0,1416,0,0
+brg_test,15,19,21,15,1485,7,7
+aeon_citimart_val,2,11,5,1,1374,1,0
+aeon_citimart_test,8,10,3,3,1426,3,2
+winmart_combined_val,30,28,22,6,2631,5,4
+winmart_combined_test,27,10,13,3,2579,8,4
+satra_val,21,24,17,11,2034,10,12
+satra_test,13,8,6,4,1856,4,4
+coopmart_combined_new_out_2_test_drop_unit_price,216,51,50,53,10074,43,47
+coopmart_combined_new_out_2_val_drop_unit_price,215,45,50,20,10715,21,16
+bigc_old_val,22,26,24,341,3525,2,8
+bigc_old_test,21,36,31,260,3119,9,9
+mega_2022_val,4,4,3,97,1478,0,1
+mega_2022_test,17,12,18,103,1487,1,4
+aeon_combined_val,49,48,45,18,6795,17,16
+aeon_combined_test,23,34,28,11,6151,11,8

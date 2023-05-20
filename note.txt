@@ -1,0 +1,102 @@
+1. exp15
+- model: centernet tự code - backbone hourglass-104
+- dữ liệu: full train + val
+- loss: om loss + focal loss
+- train được đến epoch 10 tự nhiên loss lăn đùng ra dương vô cùng, bị stop training
+- lr scheduler: 0.01 cho 20 epoch đầu, sau đó giảm xuống 0.001, nhưng chưa qua 20 ep đầu đã bị kill
+
+Kết quả: cho predict trên tập test khá tốt
+
+2. exp14
+- model: mycenternet
+- dữ liệu: limit 500 sample train
+- Kết quả: fit được và dự đoán tốt trên tập train
+
+3. exp13
+- model: smpunet
+- lr: 0.1 lúc đầu, sau giảm đi
+- có hội tụ được
+
+4. exp22:
+- model: smpunet++ + resnet34 backbone
+- dữ liệu: full
+- lr: 0.001, AdamW, no scheduler
+- đang hội tụ được
+
+
+----------------------- 17-05-2023 ------------------------
+1. Thêm augment mask ball để tránh false positive
+
+2. Chạy infer thử với mấy model train được
+    2.1 unet++_effb0, fp16, 3 frames
+    - test acc: 0.991
+
+    2.2 centernet_yolo_3_frames, fp16:
+    - test acc: 0.994
+    - cao hơn nhưng có khi là do train nhiều epoch hơn
+
+    2.3 unet++_resnet34, fp32, 5 frames
+    - test_acc: 0.994
+
+3. Dữ liệu test của họ là khoảng 7400 frames
+- Mình chỉ có khoảng 5400 frames
+- Tuy nhiên check hết những frame mà ball được annotate cũng chỉ có khoảng 6400 frames
+=> Sau này nếu cần sẽ lấy ra thêm frame từ để cho vào test
+
+- Lý do thiếu là bởi tất cả frame extract ra đều là những frame gần với event bounce hoặc net
+=> sẽ không có những frame mà bóng ở xa bàn nên nó sẽ ko detect được 
+
+4. Kịch bản training
+- Train với 5 frame liên tiếp
+- Các model thử nghiệm
+  + SmpDeepLabV3Plus + backbone efficientnet-b0
+  + centernet_yolo + backbone yolo8n
+  + CenternetHourGlass
+- Các thông số cần quan tâm khác
+ + optimizer: AdamW, lr = 0.001, scheduler = ReduceLROnPlateau, factor=0.2, patience=5
+ + precision: 16
+ + mask_ball_prob: 0.2, để tránh false positive
+ + ball_radius on 512x512: (7, 7)
+
+
+----------------------- 19-05-2023 ------------------------
+1. tìm ra conf_threshold:
+- các predict thường có score lớn hơn 0.6
+- trong 10 batch đầu (320 ảnh), mean score = 0.84, med = 0.84
+=> để tránh false positive nên chọn conf_thresh = 0.5
+
+2. So sánh kết quả các kịch bản thử nghiệm trên tập test
+- centernet_v8n_fixed_mask_ball: exp38, epoch 18, test acc: 0.996, mean_rmse: 1.664 (on 512 x 512 image)
+- centernet_v8n chưa fix mask ball: exp28, epoch 14, test acc: 0.993
+- smpdeeplabv3+_effb0 chưa fix mask ball: epoch 18, test acc: 0.991
+=> centernet_v8n tốt hơn
+=> fixed mask ball tốt hơn hẳn chưa fix
+
+3. Thay đổi hàm decode_hm bằng cách chỉ việc lấy activation max nhất trên heatmap, khỏi cần kernel 3x3 làm gì
+- vì chỉ có 1 đối tượng duy nhất trong ảnh
+
+4. Tại sao lại chọn cách heatmap này ? Tại sao ko dùng luôn mấy anchor-free detector như yolov8 luôn
+- hỏi a Sơn ý tưởng của yolov8
+- hỏi về cái ASFF module
+- hỏi tại sao deploy mô hình to lại ko được
+- Đóng góp trong việc detect bóng nhỏ
+  + vì sao chọn cách heatmap ?
+  + kĩ thuật gì giúp detect bóng nhỏ tốt hơn
+    + weight class bóng lên, chỗ nào pixel là bóng mà pred là 0 thì phạt nặng hơn
+    + augment paste bóng, lưu ý cần phải đúng thứ tự
+    + tại sao dùng nhiều frame: vì bóng hay bị mờ, nếu chỉ để 1 frame thì bóng sẽ là 1 vệt trắng trắng dài dài, và nhiều khi tự nhiên cũng có 1 vệt trắng trắng dài dài
+    => thế là bị dễ nhầm thành bóng => hỏng
+
+5. train tiếp centernet_yolov8s xem có tốt hơn yolov8n không ?
+- NOT DONE
+
+6. viết code để train được mạng có cả event_spotting
+
+7. 1 image 512x512x3 chiếm 0.75mb trong RAM
+=> 5gb ram có thể cache được khoảng 7-800 samples, mỗi sample là 9 ảnh
+
+8. Tập dữ liệu
+8.1: 9 frames
+train: 21261
+val: 3752
+test: 3743

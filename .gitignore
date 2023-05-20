@@ -1,0 +1,5 @@
+ckpt/
+model_output/
+data/
+results/
+models/__pycache__

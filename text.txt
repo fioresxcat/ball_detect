@@ -1,0 +1,1 @@
+[('/data/tungtx2/datn/ttnet/dataset/train/images/game_1/img_000012.jpg', '/data/tungtx2/datn/ttnet/dataset/train/images/game_1/img_000013.jpg', '/data/tungtx2/datn/ttnet/dataset/train/images/game_1/img_000014.jpg', '/data/tungtx2/datn/ttnet/dataset/train/images/game_1/img_000015.jpg', '/data/tungtx2/datn/ttnet/dataset/train/images/game_1/img_000016.jpg')]
