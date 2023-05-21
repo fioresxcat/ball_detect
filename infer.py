@@ -101,11 +101,12 @@ def infer_centernet(model, imgs, kernel, conf_thresh, decode_by_area=False):
 
 
 if __name__ == '__main__':
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model_type = 'smpdeeplab'
-    ckpt_path = 'ckpt/exp29_smpdeeplabv3+_effb0/model-epoch=18-train_loss=0.049-val_loss=0.040-val_acc=0.995-val_rmse=1.511.ckpt'
-    model_cfg = smpdeeplab_cfg
-    save_dir = 'results/exp29_smpdeeplabv3+_effb0/test'
+    # device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cpu'
+    model_type = 'effsmpunet'
+    ckpt_path = 'ckpt/exp46_effsmpunet_silu_all_head_nho/model-epoch=12-train_loss=0.033-val_loss=0.039-val_acc=0.997-val_ev_acc=0.000-val_rmse=1.483.ckpt'
+    model_cfg = effsmpunet_cfg
+    save_dir = 'results/exp46_effsmpunet_silu_all_head_nho/test'
     draw_result = True
     bs = 32
     ds = BallDataset(general_cfg=general_cfg, transforms=None, mode='test')

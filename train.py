@@ -16,16 +16,16 @@ import pdb
 
 
 def train(general_cfg, model_cfg):
-    if general_cfg.training.prev_ckpt_path is None:
-        experiment_dir = get_experiment_dir(general_cfg.training.ckpt_save_dir, description=general_cfg.training.exp_description)
-        os.makedirs(experiment_dir, exist_ok=True)
-        with open(os.path.join(experiment_dir, 'general_cfg.json'), 'w') as f:
-            json.dump(general_cfg, f, indent=4)
+    # if general_cfg.training.prev_ckpt_path is None:
+    experiment_dir = get_experiment_dir(general_cfg.training.ckpt_save_dir, description=general_cfg.training.exp_description)
+    os.makedirs(experiment_dir, exist_ok=True)
+    with open(os.path.join(experiment_dir, 'general_cfg.json'), 'w') as f:
+        json.dump(general_cfg, f, indent=4)
 
-        with open(os.path.join(experiment_dir, 'model_cfg.json'), 'w') as f:
-            json.dump(model_cfg, f, indent=4)
-    else:
-        experiment_dir = str(Path(general_cfg.training.prev_ckpt_path).parent)
+    with open(os.path.join(experiment_dir, 'model_cfg.json'), 'w') as f:
+        json.dump(model_cfg, f, indent=4)
+    # else:
+        # experiment_dir = str(Path(general_cfg.training.prev_ckpt_path).parent)
 
     # get data
     if general_cfg.data.train_event:
@@ -50,7 +50,7 @@ def train(general_cfg, model_cfg):
         monitor='val_acc',
         mode='max',
         dirpath=experiment_dir,
-        filename='model-{epoch:02d}-{train_loss:.3f}-{val_loss:.3f}-{val_acc:.3f}-{val_rmse:.3f}',
+        filename='model-{epoch:02d}-{train_loss:.3f}-{val_loss:.3f}-{val_acc:.3f}-{val_ev_acc:.3f}-{val_rmse:.3f}',
         save_top_k=3,
         auto_insert_metric_name=True,
         every_n_epochs=1
@@ -100,5 +100,5 @@ def train(general_cfg, model_cfg):
 if __name__ == '__main__':
     from config import *
 
-    train(general_cfg, centernet_yolo_cfg)
+    train(general_cfg, effsmpunet_cfg)
 

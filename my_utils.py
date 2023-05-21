@@ -12,6 +12,7 @@ from models.centernet import *
 
 SUPPORTED_MODEL = {
     'effunet': EffUnet,
+    'effsmpunet': EffSmpUnet,
     'smpunet': SmpUnet,
     'smpunet_modified': SmpUnetModified,
     'smpdeeplab': SmpDeepLab,

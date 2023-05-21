@@ -102,6 +102,28 @@ class BaseCenterNetEventModel(BaseModel):
         self._reset_metric()
 
 
+    def configure_optimizers(self):
+        base_lr = self.general_cfg.training.base_lr
+        opt = torch.optim.AdamW(self.parameters(), lr=base_lr, weight_decay=self.general_cfg.training.weight_decay)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            opt,
+            mode='max',
+            factor=0.2,
+            patience=10,
+            verbose=True
+        )
+
+        return {
+            'optimizer': opt,
+            'lr_scheduler': {
+                'scheduler': scheduler,
+                'monitor': 'val_ev_acc',
+                'frequency': 1,
+                'interval': 'epoch'
+            }
+        }
+    
+
     def _reset_metric(self):
         self.running_ball_true, self.running_ball_total = 0, 0
         self.val_running_ball_true, self.val_running_ball_total = 0, 0

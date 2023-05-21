@@ -28,6 +28,26 @@ class BaseUnetModel(BaseModel):
         self.running_rmse = 0
         self.val_running_rmse = 0
 
+    
+    def configure_optimizers(self):
+        base_lr = self.general_cfg.training.base_lr
+        opt = torch.optim.AdamW(self.parameters(), lr=base_lr, weight_decay=self.general_cfg.training.weight_decay)
+        
+        def lr_foo(ep):
+            if ep < 1:
+                return 10
+            else:
+                return 1
+        
+        scheduler = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=lr_foo)
+
+        return {
+            'optimizer': opt,
+            'lr_scheduler': {
+                'scheduler': scheduler,
+            }
+        }
+
 
     def common_step(self, batch, batch_idx):
         imgs, hm_true, om_true, out_pos, norm_pos = batch
@@ -100,11 +120,11 @@ class EffUnet(BaseUnetModel):
 
     def _init_layers(self):
         encoder = torchvision.models.efficientnet_b0()
-        
+
         self.conv_e1 = ConvBlock(self.config.in_c, 32, stride=2, act=nn.SiLU())    # /2, 32
         self.conv_e2 = encoder.features[1:3]     # /4, 24
         self.conv_e3 = encoder.features[3]       # /8, 40
-        self.conv_e4 = encoder.features[4]       # /16, 80
+        self.conv_e4 = encoder.features[4]       # /16, 80,    cua nos chac la [4:5] de co 112 channel
         self.conv_e5 = encoder.features[5:7]      # /32, 192
         self.conv_connect = nn.Sequential(
             ConvBlock(in_c=192, out_c=192, act=nn.SiLU()),
@@ -127,10 +147,27 @@ class EffUnet(BaseUnetModel):
             ConvBlock(in_c=64, out_c=64, act=nn.SiLU()),
             ConvBlock(in_c=64, out_c=32, act=nn.SiLU())
         )
+        # self.head = nn.Sequential(
+        #     nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, padding=1, stride=1),
+        #     nn.SiLU(),
+        #     nn.Conv2d(in_channels=32, out_channels=1, kernel_size=3, padding=1, stride=1),
+        #     nn.Sigmoid()
+        # )
+
+        c=32
         self.head = nn.Sequential(
-            nn.Conv2d(in_channels=32, out_channels=32),
+            # ConvBlock(in_c=c, out_c=c*4, act=nn.SiLU()),
+            # ConvBlock(in_c=c*4, out_c=c*4, act=nn.SiLU()),
+            # ConvBlock(in_c=c*4, out_c=c, act=nn.SiLU()),
+
+            # nn.Conv2d(c, c*4, kernel_size=3, stride=1, padding=1),
+            # nn.SiLU(),
+            # nn.Conv2d(c*4, c*4, kernel_size=3, stride=1, padding=1),
+            # nn.SiLU(),
+            nn.Conv2d(c, c, kernel_size=3, stride=1, padding=1),
             nn.SiLU(),
-            nn.Conv2d(in_channels=32, out_channels=1, ks=1),
+
+            nn.Conv2d(c, 1, kernel_size=1, stride=1, padding=0),
             nn.Sigmoid()
         )
         
@@ -161,6 +198,64 @@ class EffUnet(BaseUnetModel):
         return out
 
 
+from .unet_utils import *
+class EffSmpUnet(BaseUnetModel):
+    def __init__(self, general_cfg, model_cfg):
+        super(EffSmpUnet, self).__init__(general_cfg, model_cfg)
+        self.config = model_cfg
+        self._init_layers()
+    
+
+    def _init_layers(self):
+        encoder = torchvision.models.efficientnet_b0()
+
+        self.conv_e1 = ConvBlock(self.config.in_c, 32, stride=2, act=nn.SiLU())    # /2, 32
+        self.conv_e2 = encoder.features[1:3]     # /4, 24
+        self.conv_e3 = encoder.features[3]       # /8, 40
+        self.conv_e4 = encoder.features[4:6]       # /16, 80,    cua nos chac la [4:5] de co 112 channel
+        self.conv_e5 = encoder.features[6:8]      # /32, 192
+        
+        self.decoder = UnetPlusPlusDecoder(
+            encoder_channels = (15, 32, 24, 40, 112, 320),
+            decoder_channels=(256, 128, 64, 32, 16),
+            n_blocks=5,
+            use_batchnorm=True,
+            center=False,
+            attention_type='scse',
+        )
+
+        c = 16
+        self.hm_out = nn.Sequential(
+            # ConvBlock(in_c=c, out_c=c*4, act=nn.SiLU()),
+            # ConvBlock(in_c=c*4, out_c=c*4, act=nn.SiLU()),
+            # ConvBlock(in_c=c*4, out_c=c, act=nn.SiLU()),
+
+            # nn.Conv2d(c, c*4, kernel_size=3, stride=1, padding=1),
+            # nn.SiLU(),
+            # nn.Conv2d(c*4, c*4, kernel_size=3, stride=1, padding=1),
+            # nn.SiLU(),
+            nn.Conv2d(c, c, kernel_size=3, stride=1, padding=1),
+            nn.SiLU(),
+
+            nn.Conv2d(c, 1, kernel_size=1, stride=1, padding=0),
+            nn.Sigmoid()
+        )
+        
+
+    def forward(self, input):
+        e0 = input
+        e1 = self.conv_e1(input)     # /2, 32
+        e2 = self.conv_e2(e1)     # /4, 24
+        e3 = self.conv_e3(e2)       # /8, 40
+        e4 = self.conv_e4(e3)       # /16, 80
+        e5 = self.conv_e5(e4)      # /32, 192
+
+        decoder_output = self.decoder(e0, e1, e2, e3, e4, e5)
+        out = self.hm_out(decoder_output)
+
+        return out
+    
+
 
 class SmpUnet(BaseUnetModel):
     def __init__(self, general_cfg, model_cfg):
@@ -177,11 +272,12 @@ class SmpUnet(BaseUnetModel):
             in_channels=self.config.in_c,                  
             classes=1,
         )
+        self.sigmoid = nn.Sigmoid()
         
 
     def forward(self, input):
         out = self.model(input)
-        out = torch.sigmoid(out)
+        out = F.sigmoid(out)
         return out
     
 
@@ -305,8 +401,8 @@ class SmpDeepLab(BaseUnetModel):
 if __name__ == '__main__':
     from config import *
     general_cfg.data.output_stride = 1
-    model = SmpUnetModified(general_cfg, smpunet_cfg)
-    x = torch.rand(1, 27, 512, 512)
+    model = EffSmpUnet(general_cfg, smpunet_cfg)
+    x = torch.rand(1, 15, 512, 512)
     hm = model(x)
     pdb.set_trace()
     print(hm.shape)

@@ -12,11 +12,11 @@ general_cfg = EasyDict({
         'mask_radius': (10, 10),
         'n_input_frames': 5,
         'train_event': False,
-        'output_stride': 4,
+        'output_stride': 1,
     },
     
     'training': {
-        'exp_description': 'centernet_yolov8n_test',
+        'exp_description': 'effsmpunet_silu_all_head_nho',
         'mask_ball_prob': 0.15,
         'prev_ckpt_path': None,
         'base_lr': 0.001,
@@ -57,9 +57,18 @@ general_cfg = EasyDict({
 
 smpunet_cfg = EasyDict({
     'name': 'smpunet',
-    # 'backbone': 'efficientnet-b0',
-    'backbone': 'resnet34',
+    'backbone': 'efficientnet-b0',
     'encoder_depth': 5,
+    'loss': 'modified_focal_loss',
+})
+
+effunet_cfg = EasyDict({
+    'name': 'effunet',
+    'loss': 'modified_focal_loss',
+})
+
+effsmpunet_cfg = EasyDict({
+    'name': 'effsmpunet',
     'loss': 'modified_focal_loss',
 })
 
@@ -97,7 +106,7 @@ centernet_yolo_cfg = EasyDict({
     'name': 'centernet_yolo',
     'version': 'n',
     'loss': 'centernet_loss',
-    'load_pretrained_yolov8': True,
+    'load_pretrained_yolov8': False,
 })
 
 
@@ -105,9 +114,9 @@ centernet_yolo_event_cfg = EasyDict({
     'name': 'centernet_yolo_event',
     'version': 'n',
     'loss': 'centernet_event_loss',
-    'load_pretrained_yolov8': True,
-    'freeze_event': True,
-    'freeze_ball': False,
+    'load_pretrained_yolov8': False,
+    'freeze_event': False,
+    'freeze_ball': True,
     'l_ball': 1,
     'l_event': 1,
     'bounce_weight': 1,
@@ -131,19 +140,27 @@ else:
 
 # set in_c
 smpunet_cfg.in_c = general_cfg.data.n_input_frames * 3
+effsmpunet_cfg.in_c = general_cfg.data.n_input_frames * 3
+
 smpunet_modified_cfg.in_c = general_cfg.data.n_input_frames * 3
 smpunet_event_cfg.in_c = general_cfg.data.n_input_frames * 3
 smpdeeplab_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_event_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_hourglass_cfg.in_c = general_cfg.data.n_input_frames * 3
+effunet_cfg.in_c = general_cfg.data.n_input_frames * 3
+
 
 # set output stride
 smpunet_cfg.output_stride = general_cfg.data.output_stride
+effsmpunet_cfg.output_stride = general_cfg.data.output_stride
+
 smpdeeplab_cfg.output_stride = general_cfg.data.output_stride
 centernet_yolo_cfg.output_stride = general_cfg.data.output_stride
 centernet_yolo_event_cfg.output_stride = general_cfg.data.output_stride
 centernet_hourglass_cfg.output_stride = general_cfg.data.output_stride
+effunet_cfg.output_stride = general_cfg.data.output_stride
+
 
 
 

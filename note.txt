@@ -100,3 +100,42 @@ Kết quả: cho predict trên tập test khá tốt
 train: 21261
 val: 3752
 test: 3743
+
+
+------------------- 20-05-2023 -----------------------------
+1. smp unet bị lỗi vô lý
+- focaloss = inf
+- l1_loss = 0
+- Mà dùng effunet mình tự code thì lại chạy bth, hội tụ cũng khá nhanh, 1 nửa epoch đầu mà acc đã được tầm 50%
+- Nguyên nhân:
+  + Head đang quên dùng activation, vẫn để act mặc định là Linear:), dẫn đến loss = inf ngay
+  => Hàm act ảnh hưởng nhiều thật
+
+  + Do ko có head hoặc head đang dùng quá dài => lấy head vừa vừa chỉ bao gồm 2 lớp Conv, ko có batchnorm
+    + Head cũ đang dùng:
+          # ConvBlock(in_c=c, out_c=c*4, act=nn.SiLU()),
+          # ConvBlock(in_c=c*4, out_c=c*4, act=nn.SiLU()),
+          # ConvBlock(in_c=c*4, out_c=c, act=nn.SiLU()),
+
+          # nn.Conv2d(c, c*4, kernel_size=3, stride=1, padding=1),
+          # nn.SiLU(),
+          # nn.Conv2d(c*4, c*4, kernel_size=3, stride=1, padding=1),
+          # nn.SiLU(),
+          nn.Conv2d(c, c, kernel_size=3, stride=1, padding=1),
+          nn.SiLU(),
+
+          nn.Conv2d(c, 1, kernel_size=1, stride=1, padding=0),
+          nn.Sigmoid()
+    + Trong khi head chuẩn chỉ bao gồm 4 dòng cuối ko có comment thôi, head dài quá có khi cũng ko tốt
+    + Head dài quá chắc chắn ko tốt, vì dùng cùng 1 mạng EffUnet với head nhỏ thì hội tụ rất nhanh, trong khi với head to thì lại như shit
+    
+  + Encoder dùng SilU, mà decoder lại dùng relu => hội tụ cũng chậm hơn
+    + Code mặc định của SmpUnet với backbone EfficientnetB0 đang bị vậy. Decoder của unet++ luôn dùng hàm act là ReLU
+    + Lỗi này đã được chứng minh: Chạy SmpUnet thì loss = inf, trong khi chạy EffUnet với kiến trúc y hệt (chỉ thêm 2 lớp head) 
+      thì kết quả tốt hơn hẳn
+
+- Cách khắc phục: Dùng SmpEffUnet
+  + phần backbone là eff_b0 lấy từ torch vision
+  + phần decoder là unet++ decoder lấy từ smp, đã đổi hàm act thành SiLU (decoder này đã có attentionUnet)
+  + phần head chỉ bao gồm 2 lớp Conv như trên, ko có batchnorm
+  + Đang đạt acc 0.997 trên tập valid
