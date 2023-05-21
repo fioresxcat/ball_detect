@@ -27,10 +27,10 @@ class BaseUnetModel(BaseModel):
 
 
     def _reset_metrics(self):
-        self.running_true, self.running_total = [torch.tensor(0)] * 2
-        self.val_running_true, self.val_running_total = [torch.tensor(0)] * 2
-        self.running_rmse = torch.tensor(0)
-        self.val_running_rmse = torch.tensor(0)
+        self.running_true, self.running_total = [torch.tensor(0, device=self.device)] * 2
+        self.val_running_true, self.val_running_total = [torch.tensor(0,device=self.device)] * 2
+        self.running_rmse = torch.tensor(0, device=self.device)
+        self.val_running_rmse = torch.tensor(0, device=self.device)
 
     
     def configure_optimizers(self):
