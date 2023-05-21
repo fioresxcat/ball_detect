@@ -146,13 +146,13 @@ class BallDatasetEvent(Dataset):
 
                 transformed_imgs = [transformed[k] for k in sorted([k for k in transformed.keys() if k.startswith('image')])]
                 transformed_imgs = np.concatenate(transformed_imgs, axis=2)
-                transformed_imgs = torch.tensor(transformed_imgs)
+                transformed_imgs = torch.tensor(transformed_imgs, device=general_cfg.training.device)
 
             else:
-                transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
+                transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2), device=general_cfg.training.device)
         
         else:
-            transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
+            transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2), device=general_cfg.training.device)
 
         # normalize
         transformed_imgs = transformed_imgs.permute(2, 0, 1) / 255.
@@ -162,16 +162,15 @@ class BallDatasetEvent(Dataset):
         offset_x, offset_y = abs_x - int_x, abs_y - int_y
 
         heatmap = generate_heatmap(size=(self.output_w, self.output_h), center=(int_x, int_y), radius=self.hm_gaussian_std)
-        heatmap = torch.tensor(heatmap)
+        heatmap = torch.tensor(heatmap, device=general_cfg.training.device)
 
-
-        offset_map = torch.zeros(2, self.output_h, self.output_w)
+        offset_map = torch.zeros(2, self.output_h, self.output_w, device=general_cfg.training.device)
         offset_map[0, int_y, int_x] = offset_x
         offset_map[1, int_y, int_x] = offset_y
 
-        out_pos = torch.tensor([int_x, int_y])
+        out_pos = torch.tensor([int_x, int_y], device=general_cfg.training.device)
 
-        return transformed_imgs, heatmap, offset_map, out_pos, torch.tensor(norm_pos), torch.tensor(event_target, dtype=torch.float)
+        return transformed_imgs, heatmap, offset_map, out_pos, torch.tensor(norm_pos, device=general_cfg.training.device), torch.tensor(event_target, dtype=torch.float, device=general_cfg.training.device)
 
 
 
@@ -211,11 +210,23 @@ class BallDataEventModule(pl.LightningDataModule):
 
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.train_ds, batch_size=self.general_cfg.training.bs, shuffle=general_cfg.training.shuffle_train, num_workers=self.general_cfg.training.num_workers)
+        return DataLoader(
+            self.train_ds, 
+            batch_size=self.general_cfg.training.bs, 
+            shuffle=general_cfg.training.shuffle_train, 
+            num_workers=self.general_cfg.training.num_workers,
+            pin_memory=True
+        )
 
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
-        return DataLoader(self.val_ds, batch_size=self.general_cfg.training.bs, shuffle=False, num_workers=self.general_cfg.training.num_workers)
+        return DataLoader(
+            self.val_ds, 
+            batch_size=self.general_cfg.training.bs, 
+            shuffle=False, 
+            num_workers=self.general_cfg.training.num_workers,
+            pin_memory=True
+        )
     
 
 

@@ -141,14 +141,14 @@ class CenterNetLoss(nn.Module):
         self.l_off = l_off      # offset loss weight
 
 
-    def forward(self, hm_pred, om_pred, hm_true, om_true, abs_pos):
+    def forward(self, hm_pred, om_pred, hm_true, om_true, out_pos):
         keypoint_loss = self.focal_loss(hm_pred, hm_true)
         offset_loss = 0
         for i in range(len(hm_pred[0])):
             single_om_pred = om_pred[i]
             single_om_true = om_true[i]
-            single_pos = abs_pos[i]
-            if single_pos[0].item() == -100 and single_pos[1].item() == -100:   # frame ko có bóng => ko tinhs l1 loss
+            single_pos = out_pos[i]
+            if (single_pos == -100).all():   # frame ko có bóng => ko tinhs l1 loss
                 continue
             offset_loss += torch.abs(single_om_pred[:, single_pos[1], single_pos[0]] - single_om_true[:, single_pos[1], single_pos[0]]).sum()
         return keypoint_loss + offset_loss*self.l_off
@@ -172,7 +172,7 @@ class CenterNetEventLoss(nn.Module):
             single_om_pred = om_pred[i]
             single_om_true = om_true[i]
             single_pos = out_pos[i]
-            if single_pos[0].item() == -100 or single_pos[1].item() == -100:   # frame ko có bóng => ko tinhs l1 loss
+            if (single_pos == -100).all():   # frame ko có bóng => ko tinhs l1 loss
                 continue
             offset_loss += torch.abs(single_om_pred[:, single_pos[1], single_pos[0]] - single_om_true[:, single_pos[1], single_pos[0]]).sum()
         # pdb.set_trace()

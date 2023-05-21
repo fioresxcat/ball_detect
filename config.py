@@ -25,7 +25,7 @@ general_cfg = EasyDict({
         'min_epoch': 30,
         'precision': 16,
 
-
+        'device': 'cuda:0',
         'shuffle_train': True,
         'augment': True,
         'augment_prob': 0.5,

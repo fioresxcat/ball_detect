@@ -23,10 +23,14 @@ class BaseUnetModel(BaseModel):
 
     def _init_lightning_stuff(self):
         self.criterion = criterion_dict[self.config.loss]()
-        self.running_true, self.running_total = 0, 0
-        self.val_running_true, self.val_running_total = 0, 0
-        self.running_rmse = 0
-        self.val_running_rmse = 0
+        self._reset_metrics()
+
+
+    def _reset_metrics(self):
+        self.running_true, self.running_total = [torch.tensor(0)] * 2
+        self.val_running_true, self.val_running_total = [torch.tensor(0)] * 2
+        self.running_rmse = torch.tensor(0)
+        self.val_running_rmse = torch.tensor(0)
 
     
     def configure_optimizers(self):
@@ -58,14 +62,15 @@ class BaseUnetModel(BaseModel):
 
     def training_step(self, batch, batch_idx):
         hm_pred, hm_true, loss = self.common_step(batch, batch_idx)
+
         n_true, sum_batch_rmse = compute_metrics(hm_pred, hm_true, self.general_cfg.decode.kernel, self.general_cfg.decode.conf_thresh, self.general_cfg.decode.rmse_thresh)
         self.running_true += n_true
         self.running_total += hm_pred.shape[0]
         self.running_rmse += sum_batch_rmse
         self.log_dict({
             'train_loss': loss,
-            'train_acc': round(self.running_true/self.running_total, 3),
-            'train_rmse': round(self.running_rmse/self.running_total, 3),
+            'train_acc': self.running_true/self.running_total,
+            'train_rmse': self.running_rmse/self.running_total,
         }, on_step=True, on_epoch=True, prog_bar=True)
 
         return loss
@@ -80,33 +85,29 @@ class BaseUnetModel(BaseModel):
 
         self.log_dict({
             'val_loss': loss,
-            'val_acc': round(self.val_running_true/self.val_running_total, 3),
-            'val_rmse': round(self.val_running_rmse/self.val_running_total, 3),
+            'val_acc': self.val_running_true/self.val_running_total,
+            'val_rmse': self.val_running_rmse/self.val_running_total,
         }, on_step=True, on_epoch=True, prog_bar=True)
 
         return loss
     
 
     def on_train_epoch_end(self):
-        self.running_true, self.running_total = 0, 0
-        self.running_rmse = 0
+        self._reset_metrics()
 
     
     def on_train_epoch_start(self) -> None:
         print('\n')
-        self.running_true, self.running_total = 0, 0
-        self.running_rmse = 0
+        self._reset_metrics()
         print(f'running true: {self.running_true}, running total: {self.running_total}')
 
     
     def on_validation_epoch_end(self) -> None:
-        self.val_running_true, self.val_running_total = 0, 0
-        self.val_running_rmse = 0
+        self._reset_metrics()
 
 
     def on_validation_epoch_start(self) -> None:
-        self.val_running_true, self.val_running_total = 0, 0
-        self.val_running_rmse = 0
+        self._reset_metrics()
 
     
 

@@ -217,6 +217,6 @@ def compute_metrics(hm_pred, hm_true, kernel, conf_thresh, rmse_thresh):
     pos_pred = decode_hm(hm_pred, kernel, conf_thresh)
     pos_true = find_max_index(hm_true.unsqueeze(1))
     diff = torch.sqrt(torch.pow(pos_pred-pos_true, 2).sum(dim=1))
-    n_true = (diff<rmse_thresh).int().sum().item()
-    rmse = diff.sum().item()
+    n_true = (diff<rmse_thresh).int().sum()
+    rmse = diff.sum()
     return n_true, rmse

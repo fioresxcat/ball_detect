@@ -74,7 +74,7 @@ def train(general_cfg, model_cfg):
     
     # trainer
     trainer = Trainer(
-        accelerator='gpu',
+        accelerator=general_cfg.training.device,
         gpus='0',
         max_epochs=general_cfg.training.max_epoch,
         min_epochs=general_cfg.training.min_epoch,

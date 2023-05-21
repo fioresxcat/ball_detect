@@ -139,3 +139,6 @@ test: 3743
   + phần decoder là unet++ decoder lấy từ smp, đã đổi hàm act thành SiLU (decoder này đã có attentionUnet)
   + phần head chỉ bao gồm 2 lớp Conv như trên, ko có batchnorm
   + Đang đạt acc 0.997 trên tập valid
+
+2. Speed up training
+- Lightning tự động đưa tất cả những thứ trả về từ data loader (kể cả out_pos, norm_pos, hm_true, ...) sang gpu (nếu có gpu) ngay trong hàm common_step

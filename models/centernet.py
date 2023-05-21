@@ -24,10 +24,12 @@ class BaseCenterNetModel(BaseModel):
 
     def _init_lightning_stuff(self):
         self.criterion = criterion_dict[self.config.loss]()
-        self.running_true, self.running_total, self.running_rmse = 0, 0, 0
-        self.val_running_true, self.val_running_total, self.val_running_rmse = 0, 0, 0
+        self._reset_metrics()
 
-
+    def _reset_metrics(self):
+        self.running_true, self.running_total, self.running_rmse = [torch.tensor(0, device=self.device)] * 3
+        self.val_running_true, self.val_running_total, self.val_running_rmse = [torch.tensor(0, device=self.device)] * 3
+    
 
     def common_step(self, batch, batch_idx):
         imgs, hm_true, om_true, pos, normalized_pos = batch
@@ -38,6 +40,8 @@ class BaseCenterNetModel(BaseModel):
 
     def training_step(self, batch, batch_idx):
         hm_pred, hm_true, loss = self.common_step(batch, batch_idx)
+
+        # compute metrics
         n_true, sum_batch_rmse = compute_metrics(hm_pred, hm_true, self.general_cfg.decode.kernel, self.general_cfg.decode.conf_thresh, rmse_thresh=2)
         self.running_true += n_true
         self.running_total += hm_pred.shape[0]
@@ -45,8 +49,8 @@ class BaseCenterNetModel(BaseModel):
 
         self.log_dict({
             'train_loss': loss,
-            'train_acc': round(self.running_true/self.running_total, 3),
-            'train_rmse': round(self.running_rmse/self.running_total, 3),
+            'train_acc': torch.round(self.running_true/self.running_total, decimals=3),
+            'train_rmse': torch.round(self.running_rmse/self.running_total, decimals=3),
         }, on_step=True, on_epoch=True, prog_bar=True)
 
         return loss
@@ -62,26 +66,25 @@ class BaseCenterNetModel(BaseModel):
 
         self.log_dict({
             'val_loss': loss,
-            'val_acc': round(self.val_running_true/self.val_running_total, 3),
-            'val_rmse': round(self.val_running_rmse/self.val_running_total, 3),
+            'val_acc': torch.round(self.val_running_true/self.val_running_total, decimals=3),
+            'val_rmse': torch.round(self.val_running_rmse/self.val_running_total, decimals=3),
         }, on_step=True, on_epoch=True, prog_bar=True)
 
         return loss
     
 
     def on_train_epoch_end(self):
-        self.running_true, self.running_total, self.running_rmse = 0, 0, 0
+        self._reset_metrics()
     
     def on_train_epoch_start(self) -> None:
         print('\n')
-        self.running_true, self.running_total, self.running_rmse = 0, 0, 0
-        print(f'running true: {self.running_true}, running total: {self.running_total}')
+        self._reset_metrics()
     
     def on_validation_epoch_end(self) -> None:
-        self.val_running_true, self.val_running_total, self.val_running_rmse = 0, 0, 0
+        self._reset_metrics()
 
     def on_validation_epoch_start(self) -> None:
-        self.val_running_true, self.val_running_total, self.val_running_rmse = 0, 0, 0
+        self._reset_metrics()
 
 
 
@@ -125,14 +128,14 @@ class BaseCenterNetEventModel(BaseModel):
     
 
     def _reset_metric(self):
-        self.running_ball_true, self.running_ball_total = 0, 0
-        self.val_running_ball_true, self.val_running_ball_total = 0, 0
+        self.running_ball_true, self.running_ball_total = torch.tensor(0, device=self.device), torch.tensor(0, device=self.device)
+        self.val_running_ball_true, self.val_running_ball_total = torch.tensor(0, device=self.device), torch.tensor(0, device=self.device)
 
-        self.running_ev_true, self.running_ev_total = 0, 0
-        self.val_running_ev_true, self.val_running_ev_total = 0, 0
+        self.running_ev_true, self.running_ev_total = torch.tensor(0, device=self.device), torch.tensor(0, device=self.device)
+        self.val_running_ev_true, self.val_running_ev_total = torch.tensor(0, device=self.device), torch.tensor(0, device=self.device)
 
-        self.running_rmse = 0
-        self.val_running_rmse = 0
+        self.running_rmse = torch.tensor(0, device=self.device)
+        self.val_running_rmse = torch.tensor(0, device=self.device)
 
 
     def common_step(self, batch, batch_idx):
@@ -154,15 +157,15 @@ class BaseCenterNetEventModel(BaseModel):
         # compute event metric
         if not self.config.freeze_event:
             diff = torch.abs(torch.sigmoid(event_pred) - event_true)   # shape nx2, event_pred is not sigmoided inside the model
-            n_true = (diff < 0.25).all(dim=1).sum().item()
+            n_true = (diff < self.general_cfg.decode.ev_acc_thresh).all(dim=1).sum()
             self.running_ev_true += n_true
             self.running_ev_total += hm_pred.shape[0]
 
         self.log_dict({
             'train_loss': loss,
-            'train_acc': round(self.running_ball_true/self.running_ball_total, 3),
+            'train_acc': torch.round(self.running_ball_true/self.running_ball_total, decimals=3),
             'train_rmse': rmse,
-            'train_ev_acc': round(self.running_ev_true/self.running_ev_total, 3) if not self.config.freeze_event else -1,
+            'train_ev_acc': torch.round(self.running_ev_true/self.running_ev_total, decimals=3) if not self.config.freeze_event else -1,
         }, on_step=True, on_epoch=True, prog_bar=True)
 
         return loss
@@ -180,15 +183,15 @@ class BaseCenterNetEventModel(BaseModel):
         # compute event metric
         if not self.config.freeze_event:
             diff = torch.abs(torch.sigmoid(event_pred) - event_true)   # shape nx2
-            n_true = (diff < self.general_cfg.decode.ev_acc_thresh).all(dim=1).sum().item()
+            n_true = (diff < self.general_cfg.decode.ev_acc_thresh).all(dim=1).sum()
             self.val_running_ev_true += n_true
             self.val_running_ev_total += hm_pred.shape[0]
 
         self.log_dict({
             'val_loss': loss,
-            'val_acc': round(self.val_running_ball_true/self.val_running_ball_total, 3),
+            'val_acc': torch.round(self.val_running_ball_true/self.val_running_ball_total, decimals=3),
             'val_rmse': rmse,
-            'val_ev_acc': round(self.val_running_ev_true/self.val_running_ev_total, 3) if not self.config.freeze_event else -1,
+            'val_ev_acc': torch.round(self.val_running_ev_true/self.val_running_ev_total, decimals=3) if not self.config.freeze_event else -1,
         }, on_step=True, on_epoch=True, prog_bar=True)
 
         return loss
