@@ -142,3 +142,9 @@ test: 3743
 
 2. Speed up training
 - Lightning tự động đưa tất cả những thứ trả về từ data loader (kể cả out_pos, norm_pos, hm_true, ...) sang gpu (nếu có gpu) ngay trong hàm common_step
+- có 2 tips chính:
+ + tạo tensor ngay trên cuda
+ + ko dùng .item(), .cpu(), ... để tránh chuyển qua lại giữa cpu và gpu
+ + tune num worker
+ + set pin_memory = True trong DataLoader
+ + dùng precision 16

@@ -47,8 +47,8 @@ def train(general_cfg, model_cfg):
 
     # callbacks
     model_ckpt = ModelCheckpoint(
-        monitor='val_acc',
-        mode='max',
+        monitor=general_cfg.training.monitor,
+        mode=general_cfg.training.monitor_mode,
         dirpath=experiment_dir,
         filename='model-{epoch:02d}-{train_loss:.3f}-{val_loss:.3f}-{val_acc:.3f}-{val_ev_acc:.3f}-{val_rmse:.3f}',
         save_top_k=3,
@@ -57,8 +57,8 @@ def train(general_cfg, model_cfg):
     )
     lr_monitor = LearningRateMonitor(logging_interval='epoch')
     early_stop = EarlyStopping(
-        monitor="val_acc", 
-        mode="max",
+        monitor=general_cfg.training.monitor,
+        mode=general_cfg.training.monitor_mode,
         stopping_threshold=1,
         patience=10,
     )
@@ -74,8 +74,8 @@ def train(general_cfg, model_cfg):
     
     # trainer
     trainer = Trainer(
-        accelerator=general_cfg.training.device,
-        gpus='0',
+        accelerator='gpu',
+        gpus=1,
         max_epochs=general_cfg.training.max_epoch,
         min_epochs=general_cfg.training.min_epoch,
         auto_scale_batch_size=True,
@@ -100,5 +100,5 @@ def train(general_cfg, model_cfg):
 if __name__ == '__main__':
     from config import *
 
-    train(general_cfg, effsmpunet_cfg)
+    train(general_cfg, centernet_yolo_event_cfg)
 

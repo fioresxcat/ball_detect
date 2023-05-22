@@ -120,7 +120,7 @@ class BaseCenterNetEventModel(BaseModel):
             'optimizer': opt,
             'lr_scheduler': {
                 'scheduler': scheduler,
-                'monitor': 'val_ev_acc',
+                'monitor': self.general_cfg.training.monitor,
                 'frequency': 1,
                 'interval': 'epoch'
             }

@@ -146,13 +146,13 @@ class BallDatasetEvent(Dataset):
 
                 transformed_imgs = [transformed[k] for k in sorted([k for k in transformed.keys() if k.startswith('image')])]
                 transformed_imgs = np.concatenate(transformed_imgs, axis=2)
-                transformed_imgs = torch.tensor(transformed_imgs, device=general_cfg.training.device)
+                transformed_imgs = torch.tensor(transformed_imgs)
 
             else:
-                transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2), device=general_cfg.training.device)
+                transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
         
         else:
-            transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2), device=general_cfg.training.device)
+            transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
 
         # normalize
         transformed_imgs = transformed_imgs.permute(2, 0, 1) / 255.
@@ -162,15 +162,15 @@ class BallDatasetEvent(Dataset):
         offset_x, offset_y = abs_x - int_x, abs_y - int_y
 
         heatmap = generate_heatmap(size=(self.output_w, self.output_h), center=(int_x, int_y), radius=self.hm_gaussian_std)
-        heatmap = torch.tensor(heatmap, device=general_cfg.training.device)
+        heatmap = torch.tensor(heatmap)
 
-        offset_map = torch.zeros(2, self.output_h, self.output_w, device=general_cfg.training.device)
+        offset_map = torch.zeros(2, self.output_h, self.output_w)
         offset_map[0, int_y, int_x] = offset_x
         offset_map[1, int_y, int_x] = offset_y
 
-        out_pos = torch.tensor([int_x, int_y], device=general_cfg.training.device)
+        out_pos = torch.tensor([int_x, int_y])
 
-        return transformed_imgs, heatmap, offset_map, out_pos, torch.tensor(norm_pos, device=general_cfg.training.device), torch.tensor(event_target, dtype=torch.float, device=general_cfg.training.device)
+        return transformed_imgs, heatmap, offset_map, out_pos, torch.tensor(norm_pos), torch.tensor(event_target, dtype=torch.float)
 
 
 
