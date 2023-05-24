@@ -218,6 +218,11 @@ test: 3743
   + unet++ với effb0 encoder, test acc: 0.995
   + centernet yolov8n, test acc: 0.996
   + ttnet: 0.982
+
+- augment:
+  + mask ball
+  + flip, rotate, shift scale ...
+  
 - khó khăn:
   + thử nghiệm hàm loss
     + bce

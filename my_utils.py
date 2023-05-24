@@ -218,9 +218,49 @@ def get_events_infor(
     return events_infor, events_labels
 
 
+import shutil
+def gen_data_for_ball_detection(pkl_fp, save_dir):
+    images_dir = os.path.join(save_dir, 'images')
+    labels_dir = os.path.join(save_dir, 'labels')
+    os.makedirs(images_dir, exist_ok=True)
+    os.makedirs(labels_dir, exist_ok=True)
+
+    with open(pkl_fp, 'rb') as f:
+        data = pickle.load(f)
+
+    ball_radius = 20
+    cnt = 0
+    for img_paths, labels in data.items():
+        img_fp = Path(img_paths[-1])
+        pos = labels[-1]
+        game_name = img_fp.parent.name
+        # pdb.set_trace()
+        x_center, y_center = pos
+        w = ball_radius / 1920
+        h = ball_radius / 1080
+        yolo_anno = f'0 {x_center} {y_center} {w} {h}'
+        # save image
+        out_img_fp = os.path.join(images_dir, f'{game_name}_{img_fp.stem}.jpg')
+        shutil.copy(str(img_fp), out_img_fp)
+
+        # save annotation
+        out_anno_fp = os.path.join(labels_dir, f'{game_name}_{img_fp.stem}.txt')
+        with open(out_anno_fp, 'w') as f:
+            f.write(yolo_anno)
+
+        cnt += 1
+        print(f'Done {cnt} images')
+
+
+
 
 if __name__ == '__main__':
     np.random.seed(42)
+
+    pkl_fp = 'data/gpu2_test_dict_5.pkl'
+    save_dir = '/data2/tungtx2/datn/yolov8/ball_detection_data/test'
+    gen_data_for_ball_detection(pkl_fp, save_dir)
+
 
     # data_dir = '/data2/tungtx2/datn/ttnet/dataset/test'
     # n_input_frames = 5
@@ -267,6 +307,6 @@ if __name__ == '__main__':
 
 
 
-    with open('data/gpu2_train_dict_5.pkl', 'rb') as f:
-        obj = pickle.load(f)
-    pdb.set_trace()
+    # with open('data/gpu2_event_train_dict_9.pkl', 'rb') as f:
+    #     obj = pickle.load(f)
+    # pdb.set_trace()
