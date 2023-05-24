@@ -154,32 +154,76 @@ class CenterNetLoss(nn.Module):
         return keypoint_loss + offset_loss*self.l_off
 
 
+
 class CenterNetEventLoss(nn.Module):
-    def __init__(self, pos_weight=0.4, l_ball=1, l_event=1, bounce_weight=1, net_weight=3):
+    def __init__(self, only_bounce=True, bounce_pos_weight=0.7, l_ball=1, l_event=1, bounce_weight=1,  net_weight=1):
         super(CenterNetEventLoss, self).__init__()
         self.focal_loss = ModifiedFocalLoss()
         self.l_ball = l_ball      # offset loss weight
         self.l_event = l_event
-        self.bounce_weight = bounce_weight
-        self.net_weight = net_weight
-
+        self.loss_weight = torch.tensor([bounce_weight, net_weight])
+        self.bounce_pos_weight = bounce_pos_weight      # use when only bounce
+        self.only_bounce = only_bounce
 
     def forward(self, hm_pred, om_pred, ev_pred, hm_true, om_true, ev_true, out_pos):
-        keypoint_loss = self.focal_loss(hm_pred, hm_true)
+        keypoint_loss, offset_loss = 0, 0
+        if self.l_ball > 0:
+            # keypoint loss
+            keypoint_loss = self.focal_loss(hm_pred, hm_true)
 
-        offset_loss = 0
-        for i in range(len(hm_pred[0])):
-            single_om_pred = om_pred[i]
-            single_om_true = om_true[i]
-            single_pos = out_pos[i]
-            if (single_pos == -100).all():   # frame ko có bóng => ko tinhs l1 loss
-                continue
-            offset_loss += torch.abs(single_om_pred[:, single_pos[1], single_pos[0]] - single_om_true[:, single_pos[1], single_pos[0]]).sum()
-        # pdb.set_trace()
-        ev_loss = F.binary_cross_entropy_with_logits(ev_pred, ev_true, weight=torch.tensor([self.bounce_weight, self.net_weight], device=ev_true.device))
-        return self.l_ball * (keypoint_loss + offset_loss) + self.l_event * ev_loss
+            # offset loss
+            offset_loss = 0
+            for i in range(len(hm_pred[0])):
+                single_om_pred = om_pred[i]
+                single_om_true = om_true[i]
+                single_pos = out_pos[i]
+                if (single_pos == -100).all():   # frame ko có bóng => ko tinhs l1 loss
+                    continue
+                offset_loss += torch.abs(single_om_pred[:, single_pos[1], single_pos[0]] - single_om_true[:, single_pos[1], single_pos[0]]).sum()
+
+        # event loss
+        if self.only_bounce:
+            ev_loss = F.binary_cross_entropy_with_logits(
+                ev_pred[:, 0],   #  0 = class bounce
+                ev_true[:, 0],
+                weight=1 - torch.abs(self.bounce_pos_weight-ev_true[:, 0])
+            )
+        else:
+            ev_loss = F.binary_cross_entropy_with_logits(
+                ev_pred, 
+                ev_true, 
+                weight=self.loss_weight
+            )
+
+        ball_loss = self.l_ball * (keypoint_loss + offset_loss)
+        ev_loss = self.l_event * ev_loss
+        loss = ball_loss + ev_loss
+        return loss, ball_loss, ev_loss
 
 
+# class CenterNetEventOnlyBounceLoss(nn.Module):
+#     def __init__(self, pos_weight=0.4, l_ball=1, l_event=1, bounce_weight=1, net_weight=3):
+#         super(CenterNetEventOnlyBounceLoss, self).__init__()
+#         self.focal_loss = ModifiedFocalLoss()
+#         self.l_ball = l_ball      # offset loss weight
+#         self.l_event = l_event
+
+
+#     def forward(self, hm_pred, om_pred, ev_pred, hm_true, om_true, ev_true, out_pos):
+#         keypoint_loss = self.focal_loss(hm_pred, hm_true)
+
+#         offset_loss = 0
+#         for i in range(len(hm_pred[0])):
+#             single_om_pred = om_pred[i]
+#             single_om_true = om_true[i]
+#             single_pos = out_pos[i]
+#             if (single_pos == -100).all():   # frame ko có bóng => ko tinhs l1 loss
+#                 continue
+#             offset_loss += torch.abs(single_om_pred[:, single_pos[1], single_pos[0]] - single_om_true[:, single_pos[1], single_pos[0]]).sum()
+#         # pdb.set_trace()
+#         if ev_true
+#         ev_loss = F.binary_cross_entropy_with_logits(ev_pred, ev_true) * self.bounce_weight
+#         return self.l_ball * (keypoint_loss + offset_loss) + self.l_event * ev_loss
 
 
 if __name__ == '__main__':

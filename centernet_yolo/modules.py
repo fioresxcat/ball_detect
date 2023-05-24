@@ -249,6 +249,7 @@ class ScaleChannelAttention(nn.Module):
         if init_weight:
             self._initialize_weights()
 
+
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -259,6 +260,7 @@ class ScaleChannelAttention(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
+
     def forward(self, x):
         global_x = self.avgpool(x)
         global_x = self.fc1(global_x)
@@ -266,6 +268,7 @@ class ScaleChannelAttention(nn.Module):
         global_x = self.fc2(global_x)
         global_x = F.softmax(global_x, 1)
         return global_x
+    
 
 class ScaleChannelSpatialAttention(nn.Module):
     def __init__(self, in_planes, out_planes, num_features, init_weight=True):
@@ -346,6 +349,7 @@ class ScaleSpatialAttention(nn.Module):
         global_x = self.attention_wise(global_x)
         return global_x
 
+
 class ScaleFeatureSelection(nn.Module):
     def __init__(self, in_channels, inter_channels , out_features_num=4, attention_type='scale_spatial'):
         super(ScaleFeatureSelection, self).__init__()
@@ -361,6 +365,7 @@ class ScaleFeatureSelection(nn.Module):
         elif self.type == 'scale_channel':
             self.enhanced_attention = ScaleChannelAttention(inter_channels, inter_channels//2, out_features_num)
 
+
     def _initialize_weights(self, m):
         classname = m.__class__.__name__
         if classname.find('Conv') != -1:
@@ -368,6 +373,8 @@ class ScaleFeatureSelection(nn.Module):
         elif classname.find('BatchNorm') != -1:
             m.weight.data.fill_(1.)
             m.bias.data.fill_(1e-4)
+
+
     def forward(self, concat_x, features_list):
         concat_x = self.conv(concat_x)
         score = self.enhanced_attention(concat_x)

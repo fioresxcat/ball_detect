@@ -8,7 +8,7 @@ import pdb
 import albumentations as A
 from models.unet import *
 from models.centernet import *
-
+from models.event_cls import *
 
 SUPPORTED_MODEL = {
     'effunet': EffUnet,
@@ -18,7 +18,8 @@ SUPPORTED_MODEL = {
     'smpdeeplab': SmpDeepLab,
     'centernet': CenterNetHourGlass,
     'centernet_yolo': CenterNetYolo,
-    'centernet_yolo_event': CenterNetYoloEvent
+    'centernet_yolo_event': CenterNetYoloEvent,
+    'my_event_cls': EventClassifier
 }
 
 def load_model(model_type, general_cfg, model_cfg, ckpt_path):
@@ -32,6 +33,22 @@ def load_model(model_type, general_cfg, model_cfg, ckpt_path):
         model = SUPPORTED_MODEL[model_type](general_cfg, model_cfg)
 
     return model
+
+
+def load_state_dict_for_only_bounce_model(
+        new_model,
+        ckpt_dir='ckpt/exp_52_ep_106',
+    ):
+
+    new_model.model.backbone.load_state_dict(torch.load(os.path.join(ckpt_dir, 'backbone.pt')), strict=True)
+    new_model.model.neck.load_state_dict(torch.load(os.path.join(ckpt_dir, 'neck.pt')), strict=True)
+    new_model.model.head.conv1.load_state_dict(torch.load(os.path.join(ckpt_dir, 'head_conv1.pt')), strict=True)
+    new_model.model.head.conv2.load_state_dict(torch.load(os.path.join(ckpt_dir, 'head_conv2.pt')), strict=True)
+    new_model.model.head.conv3.load_state_dict(torch.load(os.path.join(ckpt_dir, 'head_conv3.pt')), strict=True)
+    new_model.model.head.hm_out.load_state_dict(torch.load(os.path.join(ckpt_dir, 'head_hm_out.pt')), strict=True)
+    new_model.model.head.reg_out.load_state_dict(torch.load(os.path.join(ckpt_dir, 'head_reg_out.pt')), strict=True)
+
+    return new_model
 
 
 def get_experiment_dir(root_dir, description=None):

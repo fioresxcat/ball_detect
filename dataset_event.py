@@ -47,10 +47,11 @@ def mask_ball_in_img(img: np.array, normalized_pos: tuple, r: tuple):
 
 
 class BallDatasetEvent(Dataset):
-    def __init__(self, general_cfg, transforms, mode):
+    def __init__(self, general_cfg, transforms, mode, augment=False):
         super(BallDatasetEvent, self).__init__()
         self.general_cfg = general_cfg
         self.mode = mode
+        self.augment = augment
         self.n_input_frames = general_cfg.data.n_input_frames
         self.n_sample_limit = general_cfg.data.n_sample_limit
         self.input_w, self.input_h = general_cfg.data.input_size
@@ -96,7 +97,7 @@ class BallDatasetEvent(Dataset):
         
 
         is_masked = False
-        if self.mode == 'train':
+        if self.mode == 'train' and self.augment:
             num_valid_pos = len([pos for pos in ls_pos if pos[0] >= 0 and pos[1] >= 0])
             if np.random.rand() < self.general_cfg.training.mask_ball_prob and num_valid_pos == len(ls_pos):     # mask ball
                 input_imgs = [mask_ball_in_img(img, pos, r=self.general_cfg.data.mask_radius) for img, pos in list(zip(input_imgs, ls_pos))]
@@ -178,7 +179,8 @@ class BallDataEventModule(pl.LightningDataModule):
     def __init__(self, general_cfg, augment=True):
         super(BallDataEventModule, self).__init__()
         self.general_cfg = general_cfg
-        
+        self.augment = augment
+
         if augment:
             if self.general_cfg.data.n_input_frames == 3:
                 add_target = {'image0': 'image', 'image1': 'image'}
@@ -205,8 +207,8 @@ class BallDataEventModule(pl.LightningDataModule):
     
 
     def setup(self, stage):
-        self.train_ds = BallDatasetEvent(self.general_cfg, transforms=self.transforms, mode='train')
-        self.val_ds = BallDatasetEvent(self.general_cfg, transforms=None, mode='val')
+        self.train_ds = BallDatasetEvent(self.general_cfg, transforms=self.transforms, mode='train', augment=self.augment)
+        self.val_ds = BallDatasetEvent(self.general_cfg, transforms=None, mode='val', augment=False)
 
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -215,7 +217,7 @@ class BallDataEventModule(pl.LightningDataModule):
             batch_size=self.general_cfg.training.bs, 
             shuffle=general_cfg.training.shuffle_train, 
             num_workers=self.general_cfg.training.num_workers,
-            pin_memory=True
+            pin_memory=False
         )
 
 
@@ -225,7 +227,7 @@ class BallDataEventModule(pl.LightningDataModule):
             batch_size=self.general_cfg.training.bs, 
             shuffle=False, 
             num_workers=self.general_cfg.training.num_workers,
-            pin_memory=True
+            pin_memory=False
         )
     
 

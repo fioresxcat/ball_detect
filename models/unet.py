@@ -27,8 +27,8 @@ class BaseUnetModel(BaseModel):
 
 
     def _reset_metrics(self):
-        self.running_true, self.running_total = [torch.tensor(0, device=self.device)] * 2
-        self.val_running_true, self.val_running_total = [torch.tensor(0,device=self.device)] * 2
+        self.running_true, self.running_total = torch.tensor(0, device=self.device), torch.tensor(0, device=self.device)
+        self.val_running_true, self.val_running_total = torch.tensor(0, device=self.device), torch.tensor(0, device=self.device)
         self.running_rmse = torch.tensor(0, device=self.device)
         self.val_running_rmse = torch.tensor(0, device=self.device)
 
@@ -256,6 +256,17 @@ class EffSmpUnet(BaseUnetModel):
 
         return out
     
+
+    def forward_features(self, input):
+        e0 = input
+        e1 = self.conv_e1(input)     # /2, 32
+        e2 = self.conv_e2(e1)     # /4, 24
+        e3 = self.conv_e3(e2)       # /8, 40
+        e4 = self.conv_e4(e3)       # /16, 80
+        e5 = self.conv_e5(e4)      # /32, 192
+
+        decoder_output = self.decoder(e0, e1, e2, e3, e4, e5)
+        return decoder_output
 
 
 class SmpUnet(BaseUnetModel):

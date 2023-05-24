@@ -30,7 +30,6 @@ def l2_distance(pt1, pt2):
     return math.sqrt((pt1[0]-pt2[0]) ** 2 + (pt1[1]-pt2[1]) ** 2)
 
 
-
 def get_peak_activation(A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
     """
     Extracts the values from tensor A that are indexed by tensor B, where A has shape (N, C, H, W) and B has shape (N, 2).
@@ -38,17 +37,13 @@ def get_peak_activation(A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
     """
     pdb.set_trace()
     N, H, W = A.shape
-
     # Compute the flat indices into tensor A corresponding to the indices in tensor B
     indices = B[:, 0] * W + B[:, 1]
     indices = indices.to(torch.int64)
-
     # Use torch.gather to extract the values in A indexed by B
     output = torch.gather(A.view(N, -1), dim=1, index=indices.unsqueeze(1))
-
     # Reshape the output tensor to the desired shape
     # output = output.view(N, C)
-
     return output
 
 
@@ -101,14 +96,14 @@ def infer_centernet(model, imgs, kernel, conf_thresh, decode_by_area=False):
 
 
 if __name__ == '__main__':
-    # device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    device = 'cpu'
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # device = 'cpu'
     model_type = 'effsmpunet'
     ckpt_path = 'ckpt/exp46_effsmpunet_silu_all_head_nho/model-epoch=12-train_loss=0.033-val_loss=0.039-val_acc=0.997-val_ev_acc=0.000-val_rmse=1.483.ckpt'
     model_cfg = effsmpunet_cfg
     save_dir = 'results/exp46_effsmpunet_silu_all_head_nho/test'
     draw_result = True
-    bs = 32
+    bs = 16
     ds = BallDataset(general_cfg=general_cfg, transforms=None, mode='test')
 
     model = load_model(
@@ -134,9 +129,10 @@ if __name__ == '__main__':
         n, c, input_h, input_w = batch_imgs.size()
         batch_pos_true = (batch_normalized_pos * torch.tensor([input_w, input_h])).int()  # abs x, y in cv2 coord with img size 512
         batch_imgs = batch_imgs.to(device)
+        batch_img_paths = ds.ls_img_paths[item_idx*bs:(item_idx+1)*bs]
 
 
-        if 'smp' in model_type:
+        if 'smp' in model_type or 'unet' in model_type:
             batch_pos_pred, batch_activation = infer_unet(model, batch_imgs, general_cfg.decode.kernel, general_cfg.decode.conf_thresh, general_cfg.decode.decode_by_area)      # pos_pred is abs coord with img size 512. Tensor. shape nx2
         elif 'centernet' in model_type:
             batch_pos_pred, batch_activation = infer_centernet(model, batch_imgs, general_cfg.decode.kernel, general_cfg.decode.conf_thresh, general_cfg.decode.decode_by_area)    # pos_pred is abs coord with img size 512. Tensor. shape nx2
@@ -152,7 +148,6 @@ if __name__ == '__main__':
         n_total += n
         n_true += batch_res.sum().item()
 
-        batch_img_paths = ds.ls_img_paths[item_idx*bs:(item_idx+1)*bs]
         ls_img_path = [img_paths[-1] for img_paths in batch_img_paths]
         if draw_result:
             os.makedirs(os.path.join(save_dir, 'frame'), exist_ok=True)

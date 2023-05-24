@@ -148,3 +148,86 @@ test: 3743
  + tune num worker
  + set pin_memory = True trong DataLoader
  + dùng precision 16
+
+
+-------------------------- 20-05-2023 -----------------------------
+1. test effsmpunet với head nhỏ xịn trên tập test
+- acc: 0.995, mean rmse: 1.801
+- kết quả vẫn kém hơn centernet_yolov8n
+
+2. Chốt model detect bóng riêng
+- input 5 frames
+- centernet_v8n_fixed_mask_ball: exp38, epoch 18, test acc: 0.996, mean_rmse: 1.664 (on 512 x 512 image)
+- exp46_effsmpunet_silu_all_head_nho: acc: 0.995, mean rmse: 1.801
+
+
+-------------------------- 23-05-2023 -----------------------------
+1. test model centernet_event:
+
+- trong trường hợp có nhãn là bounce và net là 1 hẳn, thì kết quả dự đoán thấy khá đúng
+  + prob của class true ko cao lắm, chỉ tầm 0.5, 0.6 gì đó với class bounce, và 0.7, 0.8 với class net (DO CLASS NET CÓ WEIGHT LỚN HƠN KHI TÍNH HÀM LOSS)
+  + prob của class còn lại luôn rất thấp, < 0.01 , WHICH IS GOOD
+  + bounce = 1, mean_bounce_prob:
+  + net = 1, mean_pred_prob:
+
+- trường hợp có nhãn là bounce và net gần gần 1, quan sát cũng khá tương tự bên trên
+  + tuy nhiên đã thấy 1 vài trường hợp dự đoán sai (prob của class đúng < prob của class sai)
+  + prob của class sai vẫn nhỏ (< 0.05)
+  + prob của class đúng ko đồng đều lắm (prob trong nhãn tăng nhưng chưa chắc prob trong pred đã tăng)
+  + CLASS NET vẫn có điểm số tốt hơn (prob pred gần với prob true hơn)
+
+- trường hợp empty event: đéo ổn rồi
+  + prob pred vẫn cao rơi vào 1 trong 2 class, dù prob true là 0, 0 hết
+
+- KẾT LUẬN:
+  + class net tốt hơn class bounce rõ
+  + đối với nhãn có sự kiện, dự đoán vẫn đúng 1 cách rõ ràng
+    + prob của class wrong gần như luôn = 0
+    + prob của class true tuy ko cao lắm nhưng cũng khoảng 0.5
+  + tuy nhiên với nhãn ko có sự kiện, thì dự đoán sai bét nhè
+    + prob pred vẫn cao rơi vào 1 trong 2 class, dù prob true là 0, 0 hết
+  
+  => Nếu chỉ cần dự đoán class bounce có vẻ là cũng oke đó
+
+- So sánh với TTNet
+  + Họ train local ball detection và event spot trong phase 2 với loss 1:2 (event spot có weight gấp đôi)
+  + basr_lr = 0.001, giảm đi 10 lần sau mỗi 10 epochs
+  + loss khác, lấy loss của nó xem sao
+
+2. model event_cls kết quả có vẻ còn tệ hơn mô hình centernet_event
+- prob pred của class true nhỏ hơn và prob pred của class wrong lại lớn hơn
+
+3. Hướng thử nghiệm cuối cùng
+3.1 Chỉ detect class bounce
+- chỉnh lại kiến trúc mô hình:
+- chỉnh lại data loader
+- copy weight từ phần detect ball sang model mới
+- train theo chiến lược của ttnet
+
+
+-------------------------------- 24-5-2023 -----------------------------
+1. phát hiện ra phần neck của centernet yolo dùng activation relu, trong khi cả mạng đều dùng silu
+- tuy nhiên chưa sửa lại
+
+2. phát hiện ra phần head event spot thiếu activation, sửa lại và đang train lại
+
+
+3. Báo cáo thầy
+- đã thử nghiệm 2 mạng 
+  + input 5 frames
+  + unet++ với effb0 encoder, test acc: 0.995
+  + centernet yolov8n, test acc: 0.996
+  + ttnet: 0.982
+- khó khăn:
+  + thử nghiệm hàm loss
+    + bce
+    + weighted bce
+    + weighted bce + focal loss
+    + ko weight class bóng lên vì mục đích là ko để false positive
+  
+- có time thì thử nghiệm thêm yolov8n
+- đang thử nghiệm thêm cả event spotting vào trong mạng detect bóng
+  + phân biệt class boucne và net khá oke trong trường hợp có 1 trong 2 class
+  + tuy nhiên trường hợp nhãn empty cũng dự đoán vào 1 trong 2 => ko ổn
+  => quyết định chỉ train phát hiện bounce
+  + sửa lại 1 số bug: hàm activation dùng relu thay vì silu, head quá to

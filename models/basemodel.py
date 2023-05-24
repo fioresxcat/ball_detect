@@ -30,5 +30,15 @@ class BaseModel(pl.LightningModule):
         }
 
 
+    def on_train_epoch_end(self):
+        self._reset_metric()
+
     def on_train_epoch_start(self) -> None:
         print('\n')
+        self._reset_metric()
+    
+    def on_validation_epoch_end(self) -> None:
+        self._reset_metric()
+
+    def on_validation_epoch_start(self) -> None:
+        self._reset_metric()

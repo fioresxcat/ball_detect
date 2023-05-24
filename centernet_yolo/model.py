@@ -97,7 +97,7 @@ class Backbone(nn.Module):
     def __init__(self, version='s', load_pretrained=True) -> None:
         super().__init__()
         DIR = os.path.join(os.getcwd(), 'centernet_yolo', 'v8_pretrained')
-        # DIR = os.path.join(os.getcwd(), 'v8_pretrained')
+        # DIR = os.path.join(os.path.join(os.getcwd(), '..'), 'centernet_yolo', 'v8_pretrained')
 
         with open(os.path.join(DIR, 'yolov8.yaml')) as f:
             d = yaml.safe_load(f)
@@ -198,47 +198,47 @@ class IHead(nn.Module):
         return out_hm, out_reg
     
 
-class IHeadEvent(nn.Module):
+class IHeadEvent(IHead):
     def __init__(self, c, nc=1) -> None:
-        super().__init__()
-        # self.ia, self.im = ImplicitA(c), ImplicitM(c)
-        self.conv1 = Conv(c*3, c*3, k=3, s=1)
-        self.conv2 = Conv(c*3, c*2, k=3, s=1)
-        self.conv3 = Conv(c*2, c, k=3, s=1)
+        super(IHeadEvent, self).__init__(c, nc)
+        
+        # self.event_spot = nn.Sequential(
+        #     Conv(c*3, c*3, k=3, s=1),
+        #     Conv(c*3, c*2, k=3, s=1),
+        #     Conv(c*2, c, k=3, s=1),
 
-        self.hm_out = nn.Sequential(
-            Conv(c, c, 3, 1), #self.ia,
-            Conv(c, c, 3, 1), #self.im,
-            nn.Conv2d(c, nc, 1, bias=True),
-            nn.Sigmoid()
-        )
-        self.hm_out[-2].bias.data.fill_(-4.6)
+        #     Conv(c, c, k=3, s=1),
+        #     nn.Dropout(p=0.1),
+        #     Conv(c, c, k=3, s=1),
+        #     nn.Dropout(p=0.1),
+        #     Conv(c, c, k=3, s=1),
+        #     nn.Dropout(p=0.1),
 
-        self.reg_out = nn.Sequential(
-            Conv(c, c, 3, 1), #self.ia,
-            Conv(c, c, 3, 1), #self.im,
-            nn.Conv2d(c, 2, 1),
-        )
+        #     nn.AdaptiveAvgPool2d(output_size=1),
+        #     nn.Flatten(),
+        #     nn.Linear(in_features=c, out_features=c),
+        #     nn.SiLU(),
+        #     nn.Linear(in_features=c, out_features=2),
+        #     # nn.Sigmoid()          # excluding sigmoid to train with BCEWithLogits Loss. At inference will add a sigmoid
+        # )
 
         self.event_spot = nn.Sequential(
-            Conv(c*3, c*3, k=3, s=1),
-            Conv(c*3, c*2, k=3, s=1),
-            Conv(c*2, c, k=3, s=1),
+            Conv(c*3, c*3, k=3, s=2, p=1),  # / 2
+            Conv(c*3, c*3, k=3, s=2, p=1),   # / 2
+            Conv(c*3, c, k=3, s=2, p=1), # /2
 
-            Conv(c, c, k=3, s=1),
-            nn.Dropout(p=0.1),
-            Conv(c, c, k=3, s=1),
-            nn.Dropout(p=0.1),
-            Conv(c, c, k=3, s=1),
-            nn.Dropout(p=0.1),
-
-            nn.AdaptiveAvgPool2d(output_size=1),
-            nn.Flatten(),
-            nn.Linear(in_features=c, out_features=c),
+            nn.Conv2d(c, c, kernel_size=3, stride=2, padding=1),  # /2
             nn.SiLU(),
-            nn.Linear(in_features=c, out_features=2),
-            # nn.Sigmoid()          # excluding sigmoid to train with BCEWithLogits Loss. At inference will add a sigmoid
+            nn.Dropout2d(p=0.1),
+            nn.Conv2d(c, c, kernel_size=3, stride=2, padding=1),   # /2, shape 64 x 4 x 4
+            nn.SiLU(),
+            nn.Dropout2d(p=0.1),
 
+            nn.Flatten(start_dim=1, end_dim=-1),
+            nn.Linear(in_features=1024, out_features=512),
+            nn.SiLU(),
+            nn.Linear(in_features=512, out_features=2),
+            # nn.Sigmoid()          # excluding sigmoid to train with BCEWithLogits Loss. At inference will add a sigmoid
         )
 
     def forward(self, input):
@@ -249,6 +249,39 @@ class IHeadEvent(nn.Module):
 
         return out_hm, out_reg, out_event
 
+
+
+class IHeadEventOnlyBounce(IHead):
+    def __init__(self, c, nc=1) -> None:
+        """
+            input has shape n x 16 x 128 x 128
+        """
+        super(IHeadEventOnlyBounce, self).__init__(c, nc)
+        self.event_spot = nn.Sequential(
+            Conv(c*3, c*3, k=3, s=2, p=1),  # / 2
+            Conv(c*3, c*3, k=3, s=2, p=1),   # / 2
+            Conv(c*3, c, k=3, s=2, p=1), # /2
+
+            nn.Conv2d(c, c, kernel_size=3, stride=2, padding=1),  # /2
+            nn.Dropout2d(p=0.1),
+            nn.Conv2d(c, c, kernel_size=3, stride=2, padding=1),   # /2, shape 64 x 4 x 4
+            nn.Dropout2d(p=0.1),
+
+            nn.Flatten(start_dim=1, end_dim=-1),
+            nn.Linear(in_features=1024, out_features=512),
+            nn.SiLU(),
+            nn.Linear(in_features=512, out_features=1),
+            # nn.Sigmoid()          # excluding sigmoid to train with BCEWithLogits Loss. At inference will add a sigmoid
+        )
+
+    def forward(self, input):
+        x = self.conv3(self.conv2(self.conv1(input)))
+        out_hm = self.hm_out(x)
+        out_reg = self.reg_out(x)
+        out_event = self.event_spot(input)
+
+        return out_hm, out_reg, out_event
+    
 
 class CenterNetYolov8(nn.Module):
     def __init__(self, version='n', nc=1, load_pretrained_yolov8=False):
@@ -264,6 +297,7 @@ class CenterNetYolov8(nn.Module):
         )
         gd, gw, max_channels = scales[version]
         ch = [make_divisible(c_*gw, 8) for c_ in [64, 128, 256, 512, max_channels]] #16, 32, 64, 128, 256
+        self.ch = ch
 
         self.backbone = Backbone(version, load_pretrained=load_pretrained_yolov8)
         inner_channels = ch[2]*3
@@ -307,61 +341,17 @@ class CenterNetYolov8(nn.Module):
     
 
 
-class CenterNetYolov8Event(nn.Module):
+class CenterNetYolov8Event(CenterNetYolov8):
     def __init__(self, version='n', nc=1, load_pretrained_yolov8=False):
-        super().__init__()
-        self.version = version
-        scales = dict(
-            # [depth, width, max_channels]
-            n= [0.33, 0.25, 1024],  # YOLOv8n summary: 225 layers,  3157200 parameters,  3157184 gradients,   8.9 GFLOPs
-            s= [0.33, 0.50, 1024],  # YOLOv8s summary: 225 layers, 11166560 parameters, 11166544 gradients,  28.8 GFLOPs
-            m= [0.67, 0.75, 768],   # YOLOv8m summary: 295 layers, 25902640 parameters, 25902624 gradients,  79.3 GFLOPs
-            l= [1.00, 1.00, 512],   # YOLOv8l summary: 365 layers, 43691520 parameters, 43691504 gradients, 165.7 GFLOPs
-            x= [1.00, 1.25, 512],   # YOLOv8x summary: 365 layers, 68229648 parameters, 68229632 gradients, 258.5 GFLOPs
-        )
-        gd, gw, max_channels = scales[version]
-        ch = [make_divisible(c_*gw, 8) for c_ in [64, 128, 256, 512, max_channels]] #16, 32, 64, 128, 256
-
-        self.backbone = Backbone(version, load_pretrained=load_pretrained_yolov8)
-        inner_channels = ch[2]*3
-        self.neck = Neck(ch[2:], inner_channels)
-        self.head = IHeadEvent(ch[2], nc)
-        
-
-    def forward(self, inp):
-        features = self.backbone(inp)
-        fuse = self.neck(features)
-        out = self.head(fuse)
-        return out
+        super(CenterNetYolov8Event,self).__init__(version, nc, load_pretrained_yolov8)
+        self.head = IHeadEvent(self.ch[2], nc)
 
 
-    def fuse(self):
-        """
-        Fuse the `Conv2d()` and `BatchNorm2d()` layers of the model into a single layer, in order to improve the
-        computation efficiency.
-        Returns:
-            (nn.Module): The fused model is returned.
-        """
-        if not self.is_fused():
-            for m in self.modules():
-                if isinstance(m, Conv) and hasattr(m, 'bn'):
-                    m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
-                    delattr(m, 'bn')  # remove batchnorm
-                    m.forward = m.forward_fuse  # update forward
+class CenterNetYolov8EventOnlyBounce(CenterNetYolov8):
+    def __init__(self, version='n', nc=1, load_pretrained_yolov8=False):
+        super(CenterNetYolov8EventOnlyBounce, self).__init__(version, nc, load_pretrained_yolov8)
+        self.head = IHeadEventOnlyBounce(self.ch[2], nc)
 
-        return self
-    
-    def is_fused(self, thresh=10):
-        """
-        Check if the model has less than a certain threshold of BatchNorm layers.
-        Args:
-            thresh (int, optional): The threshold number of BatchNorm layers. Default is 10.
-        Returns:
-            (bool): True if the number of BatchNorm layers in the model is less than the threshold, False otherwise.
-        """
-        bn = tuple(v for k, v in nn.__dict__.items() if 'Norm' in k)  # normalization layers, i.e. BatchNorm2d()
-        return sum(isinstance(v, bn) for v in self.modules()) < thresh  # True if < 'thresh' BatchNorm layers in model
-    
     
 
 if __name__ == '__main__':
