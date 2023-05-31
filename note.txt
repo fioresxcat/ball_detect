@@ -236,3 +236,32 @@ test: 3743
   + tuy nhiên trường hợp nhãn empty cũng dự đoán vào 1 trong 2 => ko ổn
   => quyết định chỉ train phát hiện bounce
   + sửa lại 1 số bug: hàm activation dùng relu thay vì silu, head quá to
+
+
+4. yolov8n -, mixed precision
+result on test set:
+- input size 512
+true:  3034
+total:  5404
+acc:  0.561
+mean rmse:  1.096
+
+- input size 640
+true:  4282
+total:  5404
+acc:  0.792
+mean rmse:  1.665
+
+- input size 1280
+true:  5368
+total:  5404
+acc:  0.993
+mean rmse:  0.684
+
+-------------------------------------- 31-05-2023 ----------------------------------------
+1. centernet_v8n_event
+- exp65 on 156
+- true: 3575, total: 3743, acc: 0.955,
+- event có vẻ khá ngon, tuy nhiên ball đang hơi kém
+=> sẽ finetune lại với loss 1:1 xem ball có ngon hơn ko
+

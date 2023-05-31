@@ -257,8 +257,8 @@ def gen_data_for_ball_detection(pkl_fp, save_dir):
 if __name__ == '__main__':
     np.random.seed(42)
 
-    pkl_fp = 'data/gpu2_test_dict_5.pkl'
-    save_dir = '/data2/tungtx2/datn/yolov8/ball_detection_data/test'
+    pkl_fp = 'data/gpu2_val_dict_5.pkl'
+    save_dir = '/data2/tungtx2/datn/yolov8/ball_detection_data/val'
     gen_data_for_ball_detection(pkl_fp, save_dir)
 
 
@@ -307,6 +307,6 @@ if __name__ == '__main__':
 
 
 
-    # with open('data/gpu2_event_train_dict_9.pkl', 'rb') as f:
+    # with open('data/gpu2_event_val_dict_9.pkl', 'rb') as f:
     #     obj = pickle.load(f)
     # pdb.set_trace()
