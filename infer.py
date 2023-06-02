@@ -20,6 +20,7 @@ from models.unet import *
 from models.centernet import *
 from config import *
 from dataset import *
+from dataset_event import *
 from loss import *
 from my_utils import *
 import math
@@ -85,7 +86,43 @@ def infer_centernet(model, imgs, kernel, conf_thresh, decode_by_area=False):
     batch_final_pos = []
     for i in range(batch_pos.shape[0]):
         pos = batch_pos[i]
-        offset = om[i][:, pos[1].long(), pos[0].long()]
+        if torch.all(pos==0):
+            offset = torch.tensor([0, 0])
+        else:
+            offset = om[i][:, pos[1].long(), pos[0].long()]
+        final_pos = pos + offset
+        final_pos = final_pos.detach().cpu() / torch.tensor([out_w, out_h]) * torch.tensor([in_w, in_h])
+        batch_final_pos.append(final_pos)
+    batch_final_pos = torch.stack(batch_final_pos, dim=0).int()
+
+    return batch_final_pos, max_values
+
+
+def infer_centernet_event(model, imgs, kernel, conf_thresh, decode_by_area=False):
+    with torch.no_grad():
+        start = time.perf_counter()
+        hm, om, ev = model(imgs)
+        print('time infer: ', time.perf_counter()-start)
+        
+    out_h, out_w = hm.shape[2:]
+    in_h, in_w = imgs.shape[2:]
+    stride = in_h / out_h
+
+    if decode_by_area:
+        batch_pos = decode_hm_by_contour(hm, conf_thresh)
+    else:
+        batch_pos = decode_hm(hm, kernel, conf_thresh)    # shape nx2
+
+    max_values, max_indices = torch.max(hm.squeeze(1).view(hm.shape[0], -1), dim=1)
+    max_values = max_values.view(-1, 1)
+
+    batch_final_pos = []
+    for i in range(batch_pos.shape[0]):
+        pos = batch_pos[i]
+        if torch.all(pos==0):
+            offset = torch.tensor([0, 0], device=pos.device)
+        else:
+            offset = om[i][:, pos[1].long(), pos[0].long()]
         final_pos = pos + offset
         final_pos = final_pos.detach().cpu() / torch.tensor([out_w, out_h]) * torch.tensor([in_w, in_h])
         batch_final_pos.append(final_pos)
@@ -98,13 +135,13 @@ def infer_centernet(model, imgs, kernel, conf_thresh, decode_by_area=False):
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # device = 'cpu'
-    model_type = 'effsmpunet'
-    ckpt_path = 'ckpt/exp46_effsmpunet_silu_all_head_nho/model-epoch=12-train_loss=0.033-val_loss=0.039-val_acc=0.997-val_ev_acc=0.000-val_rmse=1.483.ckpt'
-    model_cfg = effsmpunet_cfg
-    save_dir = 'results/exp46_effsmpunet_silu_all_head_nho/test'
-    draw_result = True
-    bs = 16
-    ds = BallDataset(general_cfg=general_cfg, transforms=None, mode='test')
+    model_type = 'centernet_yolo_event'
+    ckpt_path = 'ckpt/exp65_from_156/model-epoch=91-train_loss=0.000-val_ball_loss=0.437-val_ball_acc=0.996-val_ev_acc=0.982-val_ev_loss=0.323-val_rmse=3.902.ckpt'
+    model_cfg = centernet_yolo_event_cfg
+    save_dir = 'results/exp65_from_156_centernet_event/test'
+    draw_result = False
+    bs = 1
+    ds = BallDatasetEvent(general_cfg=general_cfg, transforms=None, mode='test')
 
     model = load_model(
         model_type,
@@ -125,7 +162,9 @@ if __name__ == '__main__':
 
     ls_activation = []
     for item_idx, item in enumerate(tqdm(ds_loader)):
-        batch_imgs, batch_hm_true, batch_om_true, batch_pos, batch_normalized_pos = item
+        # batch_imgs, batch_hm_true, batch_om_true, batch_pos, batch_normalized_pos = item
+        batch_imgs, batch_hm_true, batch_om_true, batch_pos, batch_normalized_pos, ev = item
+
         n, c, input_h, input_w = batch_imgs.size()
         batch_pos_true = (batch_normalized_pos * torch.tensor([input_w, input_h])).int()  # abs x, y in cv2 coord with img size 512
         batch_imgs = batch_imgs.to(device)
@@ -135,14 +174,20 @@ if __name__ == '__main__':
         if 'smp' in model_type or 'unet' in model_type:
             batch_pos_pred, batch_activation = infer_unet(model, batch_imgs, general_cfg.decode.kernel, general_cfg.decode.conf_thresh, general_cfg.decode.decode_by_area)      # pos_pred is abs coord with img size 512. Tensor. shape nx2
         elif 'centernet' in model_type:
-            batch_pos_pred, batch_activation = infer_centernet(model, batch_imgs, general_cfg.decode.kernel, general_cfg.decode.conf_thresh, general_cfg.decode.decode_by_area)    # pos_pred is abs coord with img size 512. Tensor. shape nx2
+            if 'event' in model_type:
+                batch_pos_pred, batch_activation = infer_centernet_event(model, batch_imgs, general_cfg.decode.kernel, general_cfg.decode.conf_thresh, general_cfg.decode.decode_by_area)    # pos_pred is abs coord with img size 512. Tensor. shape nx2
+            else:
+                batch_pos_pred, batch_activation = infer_centernet(model, batch_imgs, general_cfg.decode.kernel, general_cfg.decode.conf_thresh, general_cfg.decode.decode_by_area)    # pos_pred is abs coord with img size 512. Tensor. shape nx2
         
         # pdb.set_trace()
         ls_activation.extend(batch_activation.cpu().numpy().tolist())
         batch_pos_true = batch_pos_true.to(device)
         batch_pos_pred = batch_pos_pred.to(device)
+        print('batch_pos_true: ', batch_pos_true)
+        print('batch_pos_pred: ', batch_pos_pred)
+
         batch_rmse = torch.sqrt(torch.pow(batch_pos_pred-batch_pos_true, 2).sum(dim=1))
-        batch_res = (batch_rmse < general_cfg.decode.rmse_thresh).int()   # shape nx2, only 0,1. 0 means false and 1 means true
+        batch_res = (batch_rmse < general_cfg.decode.rmse_thresh).int()   # shape nx1, only 0,1. 0 means false and 1 means true
 
         sum_rmse += batch_rmse.sum().item()
         n_total += n
@@ -151,7 +196,7 @@ if __name__ == '__main__':
         ls_img_path = [img_paths[-1] for img_paths in batch_img_paths]
         if draw_result:
             os.makedirs(os.path.join(save_dir, 'frame'), exist_ok=True)
-            batch_imgs = (batch_imgs.permute(0, 2, 3, 1) * 255.).int().detach().cpu().numpy()
+            batch_imgs = (batch_imgs.permute(0, 2, 3, 1) * 255.).int().detach().cpu().numpy()   # img shape 512 x 512
             for i, imgs in enumerate(batch_imgs):
                 ls_img = np.split(imgs, general_cfg.data.n_input_frames, axis=2)   # list of n_input_frames imgs
                 img = ls_img[-1].astype(np.uint8)    # last img which the prediction is for

@@ -252,14 +252,58 @@ def gen_data_for_ball_detection(pkl_fp, save_dir):
         print(f'Done {cnt} images')
 
 
+def gen_data_for_event_cls(ev_data_fp, split):
+    with open(ev_data_fp, 'rb') as f:
+        ev_data = pickle.load(f)
+    all_img_dict = {}
+    for res_split in ['train', 'val', 'test']:
+        result_fp = f'results/exp38_centernet_ason_v8n_fixed_mask_ball/{res_split}/result.json'
+        result_data = json.load(open(result_fp))
+        all_img_dict.update(result_data['img_dict'])
+    # pdb.set_trace()
+    all_img_paths = sorted(list(all_img_dict.keys()))
+    final_dict = {}
+    for img_paths, labels in ev_data.items():
+        cnt = 0
+        ls_pos = []
+        for fp in img_paths:
+            if fp in all_img_paths:
+                pred = (all_img_dict[fp]['pred'][0]/512, all_img_dict[fp]['pred'][1]/512)
+                ls_pos.append(pred)
+            else:
+                ls_pos.append((-1, -1))
+                cnt += 1
+        if cnt <= 2:
+            final_dict[tuple(img_paths)] = (ls_pos, labels[1])
+    
+    bin = pickle.dumps(final_dict)
+    with open(f'data/{split}_event_new_9.pkl', 'wb') as f:
+        f.write(bin)
+
+
+
+
 
 
 if __name__ == '__main__':
     np.random.seed(42)
 
-    pkl_fp = 'data/gpu2_val_dict_5.pkl'
-    save_dir = '/data2/tungtx2/datn/yolov8/ball_detection_data/val'
-    gen_data_for_ball_detection(pkl_fp, save_dir)
+    # for split in ['train', 'val', 'test']:
+    #     ev_data_fp = f'data/gpu2_event_{split}_dict_9.pkl'
+    #     gen_data_for_event_cls(ev_data_fp, split)
+    
+    split = 'train'
+    with open(f'data/{split}_event_new_9.pkl', 'rb') as f:
+    # with open('data/gpu2_event_test_dict_9.pkl', 'rb') as f:
+        obj = pickle.load(f)
+    items = list(obj.items())
+    print(len(items))
+    pdb.set_trace()
+
+
+    # pkl_fp = 'data/gpu2_val_dict_5.pkl'
+    # save_dir = '/data2/tungtx2/datn/yolov8/ball_detection_data/val'
+    # gen_data_for_ball_detection(pkl_fp, save_dir)
 
 
     # data_dir = '/data2/tungtx2/datn/ttnet/dataset/test'

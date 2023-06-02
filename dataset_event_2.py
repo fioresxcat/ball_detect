@@ -46,15 +46,14 @@ def mask_ball_in_img(img: np.array, normalized_pos: tuple, r: tuple):
 
 
 
-class BallDatasetEvent(Dataset):
+class SequencePosDataset(Dataset):
     def __init__(self, general_cfg, transforms, mode, augment=False):
-        super(BallDatasetEvent, self).__init__()
+        super(SequencePosDataset, self).__init__()
         self.general_cfg = general_cfg
         self.mode = mode
         self.augment = augment
         self.n_input_frames = general_cfg.data.n_input_frames
         self.n_sample_limit = general_cfg.data.n_sample_limit
-        self.mask_all = general_cfg.data.mask_all
         self.input_w, self.input_h = general_cfg.data.input_size
         self.output_w, self.output_h = self.input_w // general_cfg.data.output_stride, self.input_h // general_cfg.data.output_stride
         self.hm_gaussian_std = (general_cfg.data.ball_radius[0] / general_cfg.data.output_stride, general_cfg.data.ball_radius[1] / general_cfg.data.output_stride)
@@ -103,7 +102,6 @@ class BallDatasetEvent(Dataset):
             if np.random.rand() < self.general_cfg.training.mask_ball_prob and num_valid_pos == len(ls_pos):     # mask ball
                 input_imgs = [mask_ball_in_img(img, pos, r=self.general_cfg.data.mask_radius) for img, pos in list(zip(input_imgs, ls_pos))]
                 abs_x, abs_y = -100, -100
-                norm_pos = (0., 0.)
                 event_target = (0., 0.)
                 is_masked = True
 
@@ -142,7 +140,6 @@ class BallDatasetEvent(Dataset):
 
                 if is_masked or len(transformed['keypoints']) == 0:
                     abs_x, abs_y = -100, -100
-                    norm_pos = (0., 0.)
                     event_target = (0., 0.)
                 elif len(transformed['keypoints']) > 0:
                     orig_abs_x, orig_abs_y = transformed['keypoints'][0]
@@ -156,11 +153,6 @@ class BallDatasetEvent(Dataset):
                 transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
         
         else:
-            if self.mask_all:
-                input_imgs = [mask_ball_in_img(img, pos, r=self.general_cfg.data.mask_radius) for img, pos in list(zip(input_imgs, ls_pos))]
-                abs_x, abs_y = -100, -100
-                norm_pos = (0., 0.)
-
             transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
 
         # normalize
@@ -215,8 +207,8 @@ class BallDataEventModule(pl.LightningDataModule):
     
 
     def setup(self, stage):
-        self.train_ds = BallDatasetEvent(self.general_cfg, transforms=self.transforms, mode='train', augment=self.augment)
-        self.val_ds = BallDatasetEvent(self.general_cfg, transforms=None, mode='val', augment=False)
+        self.train_ds = SequencePosDataset(self.general_cfg, transforms=self.transforms, mode='train', augment=self.augment)
+        self.val_ds = SequencePosDataset(self.general_cfg, transforms=None, mode='val', augment=False)
 
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -252,7 +244,7 @@ if __name__ == '__main__':
     #     keypoint_params=A.KeypointParams(format='xy', remove_invisible=True)
     # )
     transforms = None
-    ds = BallDatasetEvent(general_cfg, transforms, 'train')
+    ds = SequencePosDataset(general_cfg, transforms, 'train')
     ls_img_fp = ds.ls_img_paths[0]
     pos = ds.ls_labels[0]
     for img_fp in ls_img_fp:

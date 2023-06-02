@@ -261,7 +261,39 @@ mean rmse:  0.684
 -------------------------------------- 31-05-2023 ----------------------------------------
 1. centernet_v8n_event
 - exp65 on 156
-- true: 3575, total: 3743, acc: 0.955,
-- event có vẻ khá ngon, tuy nhiên ball đang hơi kém
-=> sẽ finetune lại với loss 1:1 xem ball có ngon hơn ko
+- ev_true: 3575, ev_total: 3743, ev_acc: 0.955,
+- Đây là độ chính xác event, tính theo threshold 0.25
+- tính lại độ chính xác ball và event xem sao\
 
+
+ + do chinh xac event
+   + total_0_1: 2326
+   + tp: 231
+   + fp: 5
+   + tn: 2088
+   + fn: 2
+
+
+ + do chinh xac bong: (9 frame lien tiep)
+   + true: 3723
+   + total: 3743
+   + acc: 0.995
+   => đây là trong tập tất cả đều có bóng
+   
+ + do chinh xac trong tập đã mask hết bóng
+  true:  3726
+  total:  3743
+  acc:  0.995
+  => nhận nhầm vị trí bóng của 17 frames, từ ko có bóng thành có bóng hoặc nhận sai vị trí
+
+2. báo cáo
+- làm 2 việc chính: 
++ train centernet_event 
++ so sánh kết quả với yolov8n
+- thử nghiệm 1 mô hình detect sự kiện riêng
+ + 1 luồng là cnn, chuỗi các ảnh đã cắt vùng xung quanh bóng
+ + 1 luồng là lstm, đầu vào là chuỗi các vị trí bóng
+- hỏi thầy
+ + deploy kiểu gì thì tốt: web ? docker ?
+ + có cần làm thêm mô hình gì nữa ko (liệu khối lượng công việc như này đã oke chưa)
+ + 

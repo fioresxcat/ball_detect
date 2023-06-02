@@ -14,11 +14,12 @@ general_cfg = EasyDict({
         'train_event': True,
         'only_bounce': True,
         'output_stride': 4,
+        'mask_all': True
     },
     
     'training': {
         'exp_description': 'centernet_only_bounce',
-        'mask_ball_prob': 0.1,
+        'mask_ball_prob': 0,
         'prev_ckpt_path': 'ckpt/exp57_centernet_only_bounce/model-epoch=08-train_loss=0.224-val_loss=0.230-val_acc=0.997-val_ev_acc=0.913-val_ev_loss=0.230-val_rmse=3.614.ckpt',
         'base_lr': 1e-3,
         'bs': 12,
@@ -30,7 +31,7 @@ general_cfg = EasyDict({
 
         'shuffle_train': True,
         'augment': True,
-        'augment_prob': 0.5,
+        'augment_prob': 0,
         'ckpt_save_dir': 'ckpt',
         'weight_decay': 1e-2,
         'use_warmup': False,

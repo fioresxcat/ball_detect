@@ -52,6 +52,7 @@ class BallDataset(Dataset):
         self.mode = mode
         self.n_input_frames = general_cfg.data.n_input_frames
         self.n_sample_limit = general_cfg.data.n_sample_limit
+        self.mask_all = general_cfg.data.mask_all
         self.input_w, self.input_h = general_cfg.data.input_size
         self.output_w, self.output_h = self.input_w // general_cfg.data.output_stride, self.input_h // general_cfg.data.output_stride
         self.hm_gaussian_std = (general_cfg.data.ball_radius[0] / general_cfg.data.output_stride, general_cfg.data.ball_radius[1] / general_cfg.data.output_stride)
@@ -132,6 +133,9 @@ class BallDataset(Dataset):
                 transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
         
         else:
+            if self.mask_all:
+                input_imgs = [mask_ball_in_img(img, pos, r=self.general_cfg.data.mask_radius) for img, pos in list(zip(input_imgs, ls_pos))]
+                out_abs_x, out_abs_y = -100, -100
             transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
 
         # normalize
