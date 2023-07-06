@@ -6,3 +6,7 @@ models/__pycache__
 __pycache__/
 ckpt*
 data_event_cls/
+exp_52_ep_106/
+no_ball_frames/
+no_ball_frames.zip
+

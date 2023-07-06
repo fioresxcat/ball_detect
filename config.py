@@ -9,34 +9,40 @@ general_cfg = EasyDict({
         'orig_size': (1920, 1080),
         'input_size': (512, 512),
         'ball_radius': (7, 7),
+        'orig_ball_radius': (15, 15),
         'mask_radius': (10, 10),
-        'n_input_frames': 9,
-        'train_event': True,
-        'only_bounce': True,
+        'n_input_frames': 3,
+        'train_event': False,
+        'only_bounce': False,
         'output_stride': 4,
-        'mask_all': True
+        'mask_all': False,
+        'add_no_ball_frame': True,
     },
     
     'training': {
-        'exp_description': 'centernet_only_bounce',
-        'mask_ball_prob': 0,
-        'prev_ckpt_path': 'ckpt/exp57_centernet_only_bounce/model-epoch=08-train_loss=0.224-val_loss=0.230-val_acc=0.997-val_ev_acc=0.913-val_ev_loss=0.230-val_rmse=3.614.ckpt',
+        'exp_description': 'center_net_3_frames_multi_ball_add_pos_pred_weight_add_no_ball_frame',
+        'prev_ckpt_path': None,
         'base_lr': 1e-3,
-        'bs': 12,
+        'bs': 30,
         'max_epoch': 100,
         'min_epoch': 30,
         'precision': 16,
-        'monitor': 'val_ev_acc',
+        'monitor': 'val_acc',
         'monitor_mode': 'max',
 
         'shuffle_train': True,
         'augment': True,
-        'augment_prob': 0,
+        'augment_prob': 0.7,    # augment image with albumentations
+        'mask_ball_prob': 0.1,      # mask black ball
+        'multi_ball': True,
+        'add_multi_ball_prob': 0.7,     # paste multi balls onto image
+        'num_paste': 3,     # number of balls to paste
+        'paste_region_limit': (300, 300, 1500, 800),  # xmin, ymin, xmax, ymax
         'ckpt_save_dir': 'ckpt',
         'weight_decay': 1e-2,
         'use_warmup': False,
-        'warmup_ratio': 0.1,
-        'num_workers': 8
+        'warmup_ratio': 0,
+        'num_workers': 0
     },
 
     'decode': {
@@ -72,7 +78,6 @@ smpunet_modified_cfg = EasyDict({
     'loss': 'modified_focal_loss',
 })
 
-
 smpunet_event_cfg = EasyDict({
     'name': 'smpunet',
     'backbone': 'efficientnet-b0',
@@ -99,7 +104,19 @@ centernet_yolo_cfg = EasyDict({
     'name': 'centernet_yolo',
     'version': 'n',
     'loss': 'centernet_loss',
-    'load_pretrained_yolov8': False,
+    'load_pretrained_yolov8': True,
+    'pos_pred_weight': 2,
+    'reset_optimizer': False,
+})
+
+
+centernet_yolo_multi_ball_cfg = EasyDict({
+    'name': 'centernet_yolo_multi_ball',
+    'version': 'n',
+    'loss': 'centernet_loss_multi_ball',
+    'load_pretrained_yolov8': True,
+    'pos_pred_weight': 2,
+    'reset_optimizer': False,
 })
 
 
@@ -110,12 +127,14 @@ centernet_yolo_event_cfg = EasyDict({
     'load_pretrained_yolov8': False,
     'load_exp_52': False,
     'freeze_event': False,
-    'freeze_ball': True,
-    'l_ball': 0,
-    'l_event': 1,
+    'freeze_ball': False,
+    'l_ball': 1,
+    'l_event': 1.3,
     'bounce_weight': 1,
-    'net_weight': 0,
+    'net_weight': 1,
+    'empty_weight': 1,
     'bounce_pos_weight': 0.7,
+    'reset_optimizer': True,
 })
 
 
@@ -138,12 +157,22 @@ centernet_hourglass_cfg = EasyDict({
 
 # set data_dict_path
 if not general_cfg.data.train_event:
-    general_cfg.data.train_dict_path = f'data/gpu2_train_dict_{general_cfg.data.n_input_frames}.pkl'
-    general_cfg.data.val_dict_path = f'data/gpu2_val_dict_{general_cfg.data.n_input_frames}.pkl'
+    if general_cfg.data.add_no_ball_frame:
+        general_cfg.data.train_dict_path = f'data/gpu2_train_dict_{general_cfg.data.n_input_frames}_add_no_ball_frames.pkl'
+        general_cfg.data.val_dict_path = f'data/gpu2_val_dict_{general_cfg.data.n_input_frames}_add_no_ball_frames.pkl'
+    else:
+        general_cfg.data.train_dict_path = f'data/gpu2_train_dict_{general_cfg.data.n_input_frames}.pkl'
+        general_cfg.data.val_dict_path = f'data/gpu2_val_dict_{general_cfg.data.n_input_frames}.pkl'
     general_cfg.data.test_dict_path = f'data/gpu2_test_dict_{general_cfg.data.n_input_frames}.pkl'
+        
 else:
-    general_cfg.data.train_dict_path = f'data/gpu2_event_train_dict_{general_cfg.data.n_input_frames}.pkl'
-    general_cfg.data.val_dict_path = f'data/gpu2_event_val_dict_{general_cfg.data.n_input_frames}.pkl'
+    if general_cfg.data.add_no_ball_frame:
+        general_cfg.data.train_dict_path = f'data/gpu2_event_train_dict_{general_cfg.data.n_input_frames}_add_no_ball_frames.pkl'
+        general_cfg.data.val_dict_path = f'data/gpu2_event_val_dict_{general_cfg.data.n_input_frames}_add_no_ball_frames.pkl'
+    else:
+        general_cfg.data.train_dict_path = f'data/gpu2_event_train_dict_{general_cfg.data.n_input_frames}.pkl'
+        general_cfg.data.val_dict_path = f'data/gpu2_event_val_dict_{general_cfg.data.n_input_frames}.pkl'
+
     general_cfg.data.test_dict_path = f'data/gpu2_event_test_dict_{general_cfg.data.n_input_frames}.pkl'
 
 # set in_c
@@ -153,6 +182,7 @@ smpunet_modified_cfg.in_c = general_cfg.data.n_input_frames * 3
 smpunet_event_cfg.in_c = general_cfg.data.n_input_frames * 3
 smpdeeplab_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_cfg.in_c = general_cfg.data.n_input_frames * 3
+centernet_yolo_multi_ball_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_event_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_event_only_bounce_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_hourglass_cfg.in_c = general_cfg.data.n_input_frames * 3

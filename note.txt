@@ -297,3 +297,135 @@ mean rmse:  0.684
  + deploy kiểu gì thì tốt: web ? docker ?
  + có cần làm thêm mô hình gì nữa ko (liệu khối lượng công việc như này đã oke chưa)
  + 
+
+
+-------------------------------------- 02-06-2023 ----------------------------------------
+1. bịa câu chuyện để đẻ ra model mới
+- yolov8n, size 512 => acc chỉ là 50%, infer 8ms
+- yolov8n, size 1280 => acc = 0.993, infer 12.5ms
+- my model, size 512 => acc = 0.995, infer 10ms
+=> my model dùng size nhỏ hơn và infer nhanh hơn 20%, đồng thời độ chính xác cũng cao hơn
+=> memory có chiếm nhiều hơn nhưng ko đáng kể
+=> cho thấy dùng head này có thể detect tốt những vật thể bé hơn là dùng yolov8 thuần
+
+2. bài toán này đơn giản nên có thể dùng yolov8n
+=> infer time giữa size 512 và size 1280 ko khác biệt nhiều
+  + bởi vì số cuda core vẫn đủ nhiều để chạy song song
+  
+ Tuy nhiên đối với các bài toán phức tạp hơn (nhiều class, bối cảnh đa dạng hơn), cần mô hình nặng hơn (yolov8m) chẳng hạn
+=> tăng input size sẽ dẫn đến tăng tốc độ infer lên rất nhiều
+=> my model sẽ hiệu quả hơn cho bài toán detect những vật nhỏ
+
+
+-------------------------------------- 07-06-2023 ----------------------------------------
+1. tập train val test dùng để train model yolo detect là lấy từ tập gpu2 5 frames
+=> gen ra tập 1 frame để test mô hình centernet cũng như vậy
+
+
+-------------------------------------- 22-06-2023 ----------------------------------------
+1. train mô hình serve detect
+- dữ liệu làm bằng tay
+  + label trực tiếp trên video, ví dụ từ frame 300-600 là giao bóng, từ frame 800-1200 là ko giao bóng, 
+  + sample dữ liệu: đối với mỗi khoảng, cách nhau 15 frame thì sample 1 lần => mỗi mẫu có khoảng 15 frames (1-16-31-46-...)
+  + class positive xem video để label
+  + class negative thì random sample ngoại trừ những frame thuộc class positive
+
+- train mô hình 3dcnn: x3d_s
+ + 3m tham số
+ + input shape: batch x 3 x 15 x 256 x 256
+ + kết quả: train 100%, val 100%
+ + chưa thống kê cụ thể trên tập test, tuy nhiên infer thử vài case thì thấy khá đúng
+
+2. tích hợp các mô hình
+- đã convert tất cả các mô hình sang onnx
+ + yolov8 detect người + bàn
+ + yolov8 + centernet detect detect bóng
+ + x3d_s detect sự kiện
+ + x3d_s detect giao bóng
+
+- đã thông infer cho các mô hình, chạy ra được kết quả cho toàn bộ video
+
+- đang viết nốt code để dùng các kết quả từ các mô hình để đưa ra các thông số cuối cùng cho video
+
+
+-------------------------------------- 29-06-2023 ----------------------------------------
+1. Phân tích các lỗi sai trên tập test
+a. phân tích các lỗi sai bounce
+- detect bóng sai => dẫn đến mean_cx, mean_cy sai => crop sai => infer sai
+
+- bóng ở dưới bàn trong 5 frame đầu, trồi lên mặt bàn trong 4 frames cuối hoặc ngược lại
+ => model bị overfit rằng chỉ cần 1 nửa chạm gần bàn là đủ
+ => augment mask 1 nửa và chuyển nhãn thành empty_event
+
+
+b. các lỗi sai net
+- bóng hay đi qua phần logo butterfly trắng => ko detect được, nên có nhiều TH đúng là net nhưng lại bị loại
+=> fix được bằng cách xét probs của 9 frame lân cận
+
+- bóng nảy cao, vào phần phông xanh, mà chỉ crop 1 khoảng nên sẽ thấy toàn phần phông xanh
+=> khi ng chơi tung bóng lên vào phần phông xanh cũng bị tính là net
+=> fix bằng cách crop 320 x 400, thay vì 320 x 128
+=> hoặc cách dễ hơn: nếu detect là net mà bóng ko nằm gần vị trí lưới hoặc bóng gần người => cho thành false positive luôn
+
+
+2. Kết quả mô hình detect sự kiện trên tập test
+a. 156: exp5_crop_320_400_resize_182_182_not_mask_red
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃        Test metric        ┃       DataLoader 0        ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│      test_acc_epoch       │    0.9321070909500122     │
+│      test_loss_epoch      │    0.5157871842384338     │
+
+b. 245: exp1_crop_320_400_resize_182_182_mask_red_ball
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃        Test metric        ┃       DataLoader 0        ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│      test_acc_epoch       │    0.9437381625175476     │
+│      test_loss_epoch      │    0.4641651511192322     │
+└───────────────────────────┴───────────────────────────┘
+
+c. 245: exp1_crop_320_400_resize_182_182_not_mask_red
+- thấp hơn, tầm 0.92 gì đó
+
+=> có mask red đang là tốt nhất
+
+3. làm nhãn cho bộ test
+"test_1": [
+      {
+          "start": 11230,
+          "end": 11723,
+          "end_reason": "good_ball",
+          "n_turns": 3,
+          "winner": "right"
+      },
+      {
+          "start": 12434,
+          "end": 13145,
+          "n_turns": 7,
+          "end_reason": "ball_out",
+          "winner": "left"
+      },
+      {
+          "start": 13530,
+          "end": 14300,
+          "n_turns": 3,
+          "end_reason": "good_ball",
+          "winner": "left"
+      },
+      {
+          "start": 15000,
+          "end": 15617,
+          "n_turns": 4,
+          "end_reason": "ball_out",
+          "winner": "left"
+      },
+      {
+          "start": 16260,
+          "end": 16733,
+          "n_turns": 2,
+          "end_reason": "net_hit",
+          "winner": "right"
+      }
+  ],
+
+

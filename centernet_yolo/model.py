@@ -237,7 +237,7 @@ class IHeadEvent(IHead):
             nn.Flatten(start_dim=1, end_dim=-1),
             nn.Linear(in_features=1024, out_features=512),
             nn.SiLU(),
-            nn.Linear(in_features=512, out_features=2),
+            nn.Linear(in_features=512, out_features=3),
             # nn.Sigmoid()          # excluding sigmoid to train with BCEWithLogits Loss. At inference will add a sigmoid
         )
 

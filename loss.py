@@ -99,8 +99,9 @@ class WBCELoss(nn.Module):
     
 
 class ModifiedFocalLoss(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, pos_pred_weight=2) -> None:
         super().__init__()
+        self.pos_pred_weight = pos_pred_weight
     
     def forward(self, pred, gt):
         '''
@@ -114,13 +115,16 @@ class ModifiedFocalLoss(nn.Module):
         
         pos_inds = gt.eq(1).float()
         neg_inds = gt.lt(1).float()
+        pos_pred_inds = pred.gt(0.5).float()
+        pos_pred_weight = torch.where(pos_pred_inds==1, self.pos_pred_weight, 1)
+        pos_pred_weight = pos_pred_weight.to(pos_inds.device)
 
         neg_weights = torch.pow(1 - gt, 4)
         # clamp min value is set to 1e-12 to maintain the numerical stability
         pred = torch.clamp(pred, 1e-4, 1-1e-4)
 
-        pos_loss = torch.log(pred) * torch.pow(1 - pred, 2) * pos_inds
-        neg_loss = torch.log(1 - pred) * torch.pow(pred, 2) * neg_weights * neg_inds
+        pos_loss = torch.log(pred) * torch.pow(1 - pred, 2) * pos_inds  * pos_pred_weight
+        neg_loss = torch.log(1 - pred) * torch.pow(pred, 2) * neg_weights * neg_inds  * pos_pred_weight
 
         num_pos = pos_inds.float().sum()
         pos_loss = pos_loss.sum()
@@ -134,10 +138,10 @@ class ModifiedFocalLoss(nn.Module):
 
 
 class CenterNetLoss(nn.Module):
-    def __init__(self, alpha=2, beta=4, pos_weight=0.4, l_off=1):
+    def __init__(self, alpha=2, beta=4, pos_weight=0.4, l_off=1, pos_pred_weight=2):
         super(CenterNetLoss, self).__init__()
         # self.focal_loss = CustomFocalLoss(alpha=alpha, beta=beta, pos_weight=pos_weight)
-        self.focal_loss = ModifiedFocalLoss()
+        self.focal_loss = ModifiedFocalLoss(pos_pred_weight=pos_pred_weight)
         self.l_off = l_off      # offset loss weight
 
 
@@ -148,20 +152,53 @@ class CenterNetLoss(nn.Module):
             single_om_pred = om_pred[i]
             single_om_true = om_true[i]
             single_pos = out_pos[i]
-            if (single_pos == -100).all():   # frame ko có bóng => ko tinhs l1 loss
+            if (single_pos < 0).all():   # frame ko có bóng => ko tinhs l1 loss
                 continue
             offset_loss += torch.abs(single_om_pred[:, single_pos[1], single_pos[0]] - single_om_true[:, single_pos[1], single_pos[0]]).sum()
         return keypoint_loss + offset_loss*self.l_off
+    
+
+class CenterNetLossMultiBall(nn.Module):
+    def __init__(self, alpha=2, beta=4, pos_weight=0.4, l_off=1, pos_pred_weight=2):
+        super(CenterNetLossMultiBall, self).__init__()
+        # self.focal_loss = CustomFocalLoss(alpha=alpha, beta=beta, pos_weight=pos_weight)
+        self.focal_loss = ModifiedFocalLoss(pos_pred_weight=pos_pred_weight)
+        self.l_off = l_off      # offset loss weight
+
+
+    def forward(self, hm_pred, om_pred, hm_true, om_true):
+        """
+            hm_pred: shape n x 128 x 128
+            hm_true: shape n x 1 x 128 x 128
+        """
+        keypoint_loss = self.focal_loss(hm_pred, hm_true)
+
+        offset_loss = 0
+        hm_true = hm_true.squeeze(dim=1)   # shape n x 128 x 128
+        for i in range(len(hm_pred[0])):
+            single_om_pred = om_pred[i]    # 2 x 128 x 128
+            single_om_true = om_true[i]  # 2 x 128 x 128
+            single_hm_true = hm_true[i]     # 128 x 128
+            mask = (single_hm_true == 1).float()
+            single_pos = mask.nonzero()
+
+            for pos in single_pos:
+                if (pos < 0).all():   # frame ko có bóng => ko tinhs l1 loss
+                    continue
+                offset_loss += torch.abs(single_om_pred[:, pos[1], pos[0]] - single_om_true[:, pos[1], pos[0]]).sum()
+        return keypoint_loss + offset_loss*self.l_off
+    
+
 
 
 
 class CenterNetEventLoss(nn.Module):
-    def __init__(self, only_bounce=True, bounce_pos_weight=0.7, l_ball=1, l_event=1, bounce_weight=1,  net_weight=1):
+    def __init__(self, only_bounce=True, bounce_pos_weight=0.7, l_ball=1, l_event=1, bounce_weight=1,  net_weight=1, empty_weight=1):
         super(CenterNetEventLoss, self).__init__()
         self.focal_loss = ModifiedFocalLoss()
         self.l_ball = l_ball      # offset loss weight
         self.l_event = l_event
-        self.loss_weight = torch.tensor([bounce_weight, net_weight])
+        self.loss_weight = torch.tensor([bounce_weight, net_weight, empty_weight]) / (bounce_weight + net_weight + empty_weight)
         self.bounce_pos_weight = bounce_pos_weight      # use when only bounce
         self.only_bounce = only_bounce
 
@@ -183,16 +220,16 @@ class CenterNetEventLoss(nn.Module):
 
         # event loss
         if self.only_bounce:
-            ev_loss = F.binary_cross_entropy_with_logits(
+            ev_loss = F.cross_entropy(
                 ev_pred[:, 0],   #  0 = class bounce
                 ev_true[:, 0],
                 weight=1 - torch.abs(self.bounce_pos_weight-ev_true[:, 0])
             )
         else:
-            ev_loss = F.binary_cross_entropy_with_logits(
+            ev_loss = F.cross_entropy(
                 ev_pred, 
                 ev_true, 
-                weight=self.loss_weight
+                # weight=self.loss_weight
             )
 
         ball_loss = self.l_ball * (keypoint_loss + offset_loss)

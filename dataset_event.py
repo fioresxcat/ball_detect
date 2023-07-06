@@ -85,8 +85,14 @@ class BallDatasetEvent(Dataset):
     def __getitem__(self, index):
         img_paths = self.ls_img_paths[index]
         ls_pos, event_target, event_class, seg_path = self.ls_labels[index]
-        norm_pos = ls_pos[-1]
-        abs_x, abs_y = norm_pos[0] * self.output_w, norm_pos[1] * self.output_h
+        last_norm_pos = ls_pos[-1]
+        is_masked = False
+
+        if last_norm_pos == (-1, -1):
+            out_abs_x, out_abs_y = -100, -100
+            is_masked = True
+        else:
+            out_abs_x, out_abs_y = last_norm_pos[0] * self.output_w, last_norm_pos[1] * self.output_h
 
         # process img
         input_imgs = []
@@ -97,69 +103,73 @@ class BallDatasetEvent(Dataset):
                 input_imgs.append(resized_img)
         
 
-        is_masked = False
         if self.mode == 'train' and self.augment:
             num_valid_pos = len([pos for pos in ls_pos if pos[0] >= 0 and pos[1] >= 0])
             if np.random.rand() < self.general_cfg.training.mask_ball_prob and num_valid_pos == len(ls_pos):     # mask ball
                 input_imgs = [mask_ball_in_img(img, pos, r=self.general_cfg.data.mask_radius) for img, pos in list(zip(input_imgs, ls_pos))]
-                abs_x, abs_y = -100, -100
-                norm_pos = (0., 0.)
+                out_abs_x, out_abs_y = -100, -100
+                last_norm_pos = (-1, -1)
                 event_target = (0., 0.)
                 is_masked = True
 
-            if np.random.rand() < self.general_cfg.training.augment_prob:       # augment
-                input_pos = (norm_pos[0] * self.input_w, norm_pos[1] * self.input_h)
+            # if np.random.rand() < self.general_cfg.training.augment_prob and self.transforms is not None:       # augment
+            if False:
+                pass
+                # if last_norm_pos == (-1, -1):
+                #     input_pos = (0, 0)
+                # else:
+                #     input_pos = (last_norm_pos[0] * self.input_w, last_norm_pos[1] * self.input_h)
 
-                if self.general_cfg.data.n_input_frames == 3:
-                    transformed = self.transforms(
-                        image=input_imgs[0],
-                        image0=input_imgs[1],
-                        image1=input_imgs[2],
-                        keypoints=[input_pos]
-                    )
-                elif self.general_cfg.data.n_input_frames == 5:
-                    transformed = self.transforms(
-                        image=input_imgs[0],
-                        image0=input_imgs[1],
-                        image1=input_imgs[2],
-                        image2=input_imgs[3],
-                        image3=input_imgs[4],
-                        keypoints=[input_pos]
-                    )
-                elif self.general_cfg.data.n_input_frames == 9:
-                    transformed = self.transforms(
-                        image=input_imgs[0],
-                        image0=input_imgs[1],
-                        image1=input_imgs[2],
-                        image2=input_imgs[3],
-                        image3=input_imgs[4],
-                        image4=input_imgs[5],
-                        image5=input_imgs[6],
-                        image6=input_imgs[7],
-                        image7=input_imgs[8],
-                        keypoints=[input_pos]
-                    )
+                # if self.general_cfg.data.n_input_frames == 3:
+                #     transformed = self.transforms(
+                #         image=input_imgs[0],
+                #         image0=input_imgs[1],
+                #         image1=input_imgs[2],
+                #         keypoints=[input_pos]
+                #     )
+                # elif self.general_cfg.data.n_input_frames == 5:
+                #     transformed = self.transforms(
+                #         image=input_imgs[0],
+                #         image0=input_imgs[1],
+                #         image1=input_imgs[2],
+                #         image2=input_imgs[3],
+                #         image3=input_imgs[4],
+                #         keypoints=[input_pos]
+                #     )
+                # elif self.general_cfg.data.n_input_frames == 9:
+                #     transformed = self.transforms(
+                #         image=input_imgs[0],
+                #         image0=input_imgs[1],
+                #         image1=input_imgs[2],
+                #         image2=input_imgs[3],
+                #         image3=input_imgs[4],
+                #         image4=input_imgs[5],
+                #         image5=input_imgs[6],
+                #         image6=input_imgs[7],
+                #         image7=input_imgs[8],
+                #         keypoints=[input_pos]
+                #     )
 
-                if is_masked or len(transformed['keypoints']) == 0:
-                    abs_x, abs_y = -100, -100
-                    norm_pos = (0., 0.)
-                    event_target = (0., 0.)
-                elif len(transformed['keypoints']) > 0:
-                    orig_abs_x, orig_abs_y = transformed['keypoints'][0]
-                    abs_x, abs_y = orig_abs_x / self.general_cfg.data.output_stride, orig_abs_y / self.general_cfg.data.output_stride
+                # if is_masked or len(transformed['keypoints']) == 0:
+                #     out_abs_x, out_abs_y = -100, -100
+                #     last_norm_pos = (-1, -1)
+                #     event_target = (0., 0.)
+                # elif len(transformed['keypoints']) > 0:
+                #     input_abs_x, input_abs_y = transformed['keypoints'][0]
+                #     out_abs_x, out_abs_y = input_abs_x / self.general_cfg.data.output_stride, input_abs_y / self.general_cfg.data.output_stride
 
-                transformed_imgs = [transformed[k] for k in sorted([k for k in transformed.keys() if k.startswith('image')])]
-                transformed_imgs = np.concatenate(transformed_imgs, axis=2)
-                transformed_imgs = torch.tensor(transformed_imgs)
+                # transformed_imgs = [transformed[k] for k in sorted([k for k in transformed.keys() if k.startswith('image')])]
+                # transformed_imgs = np.concatenate(transformed_imgs, axis=2)
+                # transformed_imgs = torch.tensor(transformed_imgs)
 
             else:
                 transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
         
         else:
-            if self.mask_all:
-                input_imgs = [mask_ball_in_img(img, pos, r=self.general_cfg.data.mask_radius) for img, pos in list(zip(input_imgs, ls_pos))]
-                abs_x, abs_y = -100, -100
-                norm_pos = (0., 0.)
+            # if self.mask_all:
+            #     input_imgs = [mask_ball_in_img(img, pos, r=self.general_cfg.data.mask_radius) for img, pos in list(zip(input_imgs, ls_pos))]
+            #     out_abs_x, out_abs_y = -100, -100
+            #     last_norm_pos = (0., 0.)
 
             transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
 
@@ -167,8 +177,8 @@ class BallDatasetEvent(Dataset):
         transformed_imgs = transformed_imgs.permute(2, 0, 1) / 255.
 
         # process pos
-        int_x, int_y = int(abs_x), int(abs_y)
-        offset_x, offset_y = abs_x - int_x, abs_y - int_y
+        int_x, int_y = int(out_abs_x), int(out_abs_y)
+        offset_x, offset_y = out_abs_x - int_x, out_abs_y - int_y
 
         heatmap = generate_heatmap(size=(self.output_w, self.output_h), center=(int_x, int_y), radius=self.hm_gaussian_std)
         heatmap = torch.tensor(heatmap)
@@ -178,8 +188,17 @@ class BallDatasetEvent(Dataset):
         offset_map[1, int_y, int_x] = offset_y
 
         out_pos = torch.tensor([int_x, int_y])
+        last_norm_pos = torch.tensor([out_abs_x, out_abs_y]) / torch.tensor([self.output_w, self.output_h])
 
-        return transformed_imgs, heatmap, offset_map, out_pos, torch.tensor(norm_pos), torch.tensor(event_target, dtype=torch.float)
+        # construct event target
+        if event_target[0] != 0:
+            event_target = torch.tensor([event_target[0], 0, 1-event_target[0]], dtype=torch.float)
+        elif event_target[1] != 0:
+            event_target = torch.tensor([0, event_target[1], 1-event_target[1]], dtype=torch.float)
+        else:
+            event_target = torch.tensor([0, 0, 1], dtype=torch.float)
+
+        return transformed_imgs, heatmap, offset_map, out_pos, last_norm_pos, event_target
 
 
 

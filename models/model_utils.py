@@ -140,12 +140,17 @@ class HourGlassModule(nn.Module):
 
 
 
-def find_max_index(hm):
+def find_max_index(hm, top_k, min_score):
     """
         hm shape: n x 1 x out_h x out_w
     """
-    batch, cat, height, width = hm.size()
-    topk_scores, topk_inds = torch.topk(hm.view(batch, cat, -1), 1)
+    # pdb.set_trace()
+    batch, c, height, width = hm.size()
+    topk_scores, topk_inds = torch.topk(hm.view(batch, c, -1), top_k)
+    # only keep topk above threshold
+    # topk_inds = topk_inds[topk_scores >= min_score]
+    # topk_scores = topk_scores[topk_scores >= min_score]
+
     topk_inds = topk_inds % (height * width)
     topk_ys   = (topk_inds / width).int().float()
     topk_xs   = (topk_inds % width).int().float()
@@ -153,31 +158,42 @@ def find_max_index(hm):
     return pos      # shape n x 2
 
 
-def decode_hm(hm, kernel, conf_thresh):
-    """
-        hm shape: n x 1 x out_w x out_h
-        if there is a heatmap in the batch with no detected ball, will return ball_pos as [0, 0]
-    """
-    pad = (kernel - 1) // 2
-    hmax = nn.functional.max_pool2d(hm, (kernel, kernel), stride=1, padding=pad)
-    keep = (hmax == hm).float()
-    hm = hm * keep   # n x 1 x out_h x out_w
-    hm = torch.where(hm<conf_thresh, 0, hm)
-    pos = find_max_index(hm)
-    return pos
+# def decode_hm(hm, kernel, conf_thresh):
+#     """
+#         hm shape: n x 1 x out_w x out_h
+#         if there is a heatmap in the batch with no detected ball, will return ball_pos as [0, 0]
+#     """
+#     pad = (kernel - 1) // 2
+#     hmax = nn.functional.max_pool2d(hm, (kernel, kernel), stride=1, padding=pad)
+#     keep = (hmax == hm).float()
+#     hm = hm * keep   # n x 1 x out_h x out_w
+#     hm = torch.where(hm<conf_thresh, 0, hm)
+#     pos = find_max_index(hm)
+#     return pos
 
 
-def decode_hm(hm, kernel, conf_thresh):
+def decode_hm(hm, kernel, conf_thresh, multi_ball=False):
     """
         hm shape: n x 1 x out_w x out_h
         if there is a heatmap in the batch with no detected ball, will return ball_pos as [0, 0]
     """
     hm = hm.squeeze(dim=1)
     hm = torch.where(hm<conf_thresh, 0, hm)
-    max_indices = torch.argmax(hm.view(hm.shape[0], -1), dim=1)
-    pos = torch.stack([max_indices // hm.shape[2], max_indices % hm.shape[2]], dim=1)
-    pos[:, [0, 1]] = pos[:, [1, 0]]
-    return pos
+
+    if not multi_ball:
+        max_indices = torch.argmax(hm.view(hm.shape[0], -1), dim=1)
+        pos = torch.stack([max_indices // hm.shape[2], max_indices % hm.shape[2]], dim=1)
+        pos[:, [0, 1]] = pos[:, [1, 0]]
+        return pos  # shape n x 2
+    else:
+        pad = (kernel - 1) // 2
+        hmax = nn.functional.max_pool2d(hm, (kernel, kernel), stride=1, padding=pad)
+        keep = (hmax == hm).float()
+        hm = hm * keep   # n x 1 x out_h x out_w
+        hm = torch.where(hm<conf_thresh, 0, hm)
+        pos = find_max_index(hm)
+        return pos    # shape n x 2
+
 
 
 def decode_hm_by_contour(batch_hm, conf_thresh):
@@ -209,14 +225,34 @@ def decode_hm_by_contour(batch_hm, conf_thresh):
 
 
 
-def compute_metrics(hm_pred, hm_true, kernel, conf_thresh, rmse_thresh):
+def compute_metrics(hm_pred, hm_true, kernel, conf_thresh, rmse_thresh, multi_ball=False):
     """
         hm_pred: shape n x 1 x out_h x out_w
         hm_true: shape n x out_h x out_w
     """
-    pos_pred = decode_hm(hm_pred, kernel, conf_thresh)
-    pos_true = find_max_index(hm_true.unsqueeze(1))
+    pos_pred = decode_hm(hm_pred, kernel, conf_thresh, multi_ball=multi_ball)
+    # pdb.set_trace()
+    pos_true = find_max_index(hm_true.unsqueeze(1), min_score=1, top_k=1)  # max 10 ball in images
     diff = torch.sqrt(torch.pow(pos_pred-pos_true, 2).sum(dim=1))
     n_true = (diff<rmse_thresh).int().sum()
     rmse = diff.sum()
     return n_true, rmse
+
+
+
+# def compute_metrics_multi_ball(hm_pred, hm_true, kernel, conf_thresh, rmse_thresh, multi_ball):
+#     """
+#         hm_pred: shape n x 1 x out_h x out_w
+#         hm_true: shape n x out_h x out_w
+#     """
+#     pos_pred = decode_hm(hm_pred, kernel, conf_thresh, multi_ball=multi_ball)  # shape b x n1 x 2
+#     pos_true = find_max_index(hm_true.unsqueeze(1), min_score=1, top_k=10)  # max 10 ball in images, shape b x n2 x 2
+#     dist = torch.matmul(pos_pred, pos_true.t())  # shape b x n1 x n2
+
+
+
+if __name__ == '__main__':
+    hm_true = torch.zeros(size=(1, 1, 128, 128))
+    hm_true[0, 0, 10, 10] = 1
+    hm_true[0, 0, 50, 50] = 1
+    hm_true[0, 0, 100, 100] = 1

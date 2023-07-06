@@ -1,10 +1,14 @@
 import torch
+
+torch.set_float32_matmul_precision('high')
+
 import torch.nn as nn
 import yaml
 from models.unet import *
 from models.centernet import *
 from dataset import *
 from dataset_event import *
+from dataset_multi_ball import *
 from my_utils import *
 from config import general_cfg
 import pytorch_lightning as pl
@@ -27,8 +31,11 @@ def train(general_cfg, model_cfg):
     # get data
     if general_cfg.data.train_event:
         data_module = BallDataEventModule(general_cfg=general_cfg, augment=general_cfg.training.augment)
+    elif general_cfg.training.multi_ball:
+        data_module = MultiBallDataModule(general_cfg=general_cfg, augment=general_cfg.training.augment)
     else:
         data_module = BallDataModule(general_cfg=general_cfg, augment=general_cfg.training.augment)
+
 
     print('NUM TRAIN SAMPLES: ', len(data_module.train_ds))
     print('NUM VAL SAMPLES: ', len(data_module.val_ds))
@@ -40,13 +47,13 @@ def train(general_cfg, model_cfg):
         model_cfg=model_cfg,
         ckpt_path=None
     )
-    if model_cfg.load_exp_52:
-        model = load_state_dict_for_only_bounce_model(
-            model,
-            ckpt_dir='exp_52_ep_106'
-        )
-        print('Successfully loaded weights for only bounce model')
-    pdb.set_trace()
+    # if model_cfg.load_exp_52:
+    #     model = load_state_dict_for_only_bounce_model(
+    #         model,
+    #         ckpt_dir='exp_52_ep_106'
+    #     )
+    #     print('Successfully loaded weights for only bounce model')
+    # pdb.set_trace()
 
     # callbacks
     model_ckpt = ModelCheckpoint(
@@ -63,7 +70,7 @@ def train(general_cfg, model_cfg):
         monitor=general_cfg.training.monitor,
         mode=general_cfg.training.monitor_mode,
         stopping_threshold=1,
-        patience=10,
+        patience=12,
     )
     rich_prog = RichProgressBar(leave=True)
     rich_summary = RichModelSummary()
@@ -78,16 +85,17 @@ def train(general_cfg, model_cfg):
     # trainer
     trainer = Trainer(
         accelerator='gpu',
-        gpus='0',
+        devices=[0],
         max_epochs=general_cfg.training.max_epoch,
         min_epochs=general_cfg.training.min_epoch,
         auto_scale_batch_size=True,
-        callbacks=[model_ckpt, lr_monitor, early_stop, rich_prog, rich_summary],
-        # callbacks=[model_ckpt, lr_monitor, early_stop],
+        # callbacks=[model_ckpt, lr_monitor, early_stop, rich_prog, rich_summary],
+        callbacks=[model_ckpt, lr_monitor, early_stop],
         logger=logger,
         log_every_n_steps=50,
         precision=general_cfg.training.precision,
-        profiler='simple'
+        # profiler='simple'
+        profiler=pl.profilers.SimpleProfiler(dirpath=experiment_dir, filename='profiler.txt'),
         # fast_dev_run=True,
         # overfit_batches=1,
     )
@@ -104,5 +112,6 @@ def train(general_cfg, model_cfg):
 if __name__ == '__main__':
     from config import *
 
-    train(general_cfg, centernet_yolo_event_cfg)
+    if general_cfg.training.multi_ball:
+        train(general_cfg, centernet_yolo_multi_ball_cfg)
 

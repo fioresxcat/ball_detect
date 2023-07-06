@@ -50,6 +50,7 @@ class BallDataset(Dataset):
         super(BallDataset, self).__init__()
         self.general_cfg = general_cfg
         self.mode = mode
+        self.augment = general_cfg.training.augment
         self.n_input_frames = general_cfg.data.n_input_frames
         self.n_sample_limit = general_cfg.data.n_sample_limit
         self.mask_all = general_cfg.data.mask_all
@@ -82,7 +83,13 @@ class BallDataset(Dataset):
         img_paths = self.ls_img_paths[index]
         ls_pos = self.ls_ball_pos[index]
         norm_pos = ls_pos[-1]
-        out_abs_x, out_abs_y = norm_pos[0] * self.output_w, norm_pos[1] * self.output_h
+        is_masked = False
+
+        if norm_pos == (-1, -1):
+            out_abs_x, out_abs_y = -100, -100
+            is_masked = True
+        else:
+            out_abs_x, out_abs_y = norm_pos[0] * self.output_w, norm_pos[1] * self.output_h
 
         # process img
         input_imgs = []
@@ -91,18 +98,25 @@ class BallDataset(Dataset):
                 resized_img = cv2.resize(self.jpeg_reader.decode(in_file.read(), 0), (self.input_w, self.input_h))  # already rgb images
             input_imgs.append(resized_img)
         
-        is_masked = False
-        if self.mode == 'train':
+        if self.mode == 'train' and self.augment:
             num_valid_pos = len([pos for pos in ls_pos if pos[0] >= 0 and pos[1] >= 0])
             if np.random.rand() < self.general_cfg.training.mask_ball_prob and num_valid_pos == len(ls_pos):     # mask ball
                 input_imgs = [mask_ball_in_img(img, pos, r=self.general_cfg.data.mask_radius) for img, pos in list(zip(input_imgs, ls_pos))]
                 out_abs_x, out_abs_y = -100, -100
                 is_masked = True
 
-            if np.random.rand() < self.general_cfg.training.augment_prob:       # augment
-                input_pos = (norm_pos[0] * self.input_w, norm_pos[1] * self.input_h)
+            if np.random.rand() < self.general_cfg.training.augment_prob and self.transforms is not None:       # augment
+                if norm_pos == (-1, -1):
+                    input_pos = (0, 0)
+                else:
+                    input_pos = (norm_pos[0] * self.input_w, norm_pos[1] * self.input_h) 
 
-                if self.general_cfg.data.n_input_frames == 3:
+                if self.general_cfg.data.n_input_frames == 1:
+                    transformed = self.transforms(
+                        image=input_imgs[0],
+                        keypoints=[input_pos]
+                    )
+                elif self.general_cfg.data.n_input_frames == 3:
                     transformed = self.transforms(
                         image=input_imgs[0],
                         image0=input_imgs[1],
@@ -133,9 +147,9 @@ class BallDataset(Dataset):
                 transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
         
         else:
-            if self.mask_all:
-                input_imgs = [mask_ball_in_img(img, pos, r=self.general_cfg.data.mask_radius) for img, pos in list(zip(input_imgs, ls_pos))]
-                out_abs_x, out_abs_y = -100, -100
+            # if self.mask_all:
+            #     input_imgs = [mask_ball_in_img(img, pos, r=self.general_cfg.data.mask_radius) for img, pos in list(zip(input_imgs, ls_pos))]
+            #     out_abs_x, out_abs_y = -100, -100
             transformed_imgs = torch.tensor(np.concatenate(input_imgs, axis=2))
 
         # normalize
@@ -164,6 +178,8 @@ class BallDataModule(pl.LightningDataModule):
         self.general_cfg = general_cfg
         
         if augment:
+            if self.general_cfg.data.n_input_frames == 1:
+                add_target=None
             if self.general_cfg.data.n_input_frames == 3:
                 add_target = {'image0': 'image', 'image1': 'image'}
             elif self.general_cfg.data.n_input_frames == 5:

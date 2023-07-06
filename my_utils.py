@@ -18,6 +18,7 @@ SUPPORTED_MODEL = {
     'smpdeeplab': SmpDeepLab,
     'centernet': CenterNetHourGlass,
     'centernet_yolo': CenterNetYolo,
+    'centernet_yolo_multi_ball': CenterNetYoloMultiBall,
     'centernet_yolo_event': CenterNetYoloEvent,
     'my_event_cls': EventClassifier
 }
@@ -99,19 +100,53 @@ def create_paths2pos(data_dir, n_input_frames, mode='train'):
         val_dict = {k: path2pos[k] for k in val_keys}
 
         train_bin = pickle.dumps(train_dict)
-        with open(f'data/gpu2_train_dict_{n_input_frames}.pkl', 'wb') as f:
+        with open(f'data/gpu2_train_dict_{n_input_frames}_full.pkl', 'wb') as f:
             f.write(train_bin)
         
         val_bin = pickle.dumps(val_dict)
-        with open(f'data/gpu2_val_dict_{n_input_frames}.pkl', 'wb') as f:
+        with open(f'data/gpu2_val_dict_{n_input_frames}_full.pkl', 'wb') as f:
             f.write(val_bin)
 
     elif mode == 'test':
         test_bin = pickle.dumps(path2pos)
-        with open(f'data/gpu2_test_dict_{n_input_frames}.pkl', 'wb') as f:
+        with open(f'data/gpu2_test_dict_{n_input_frames}_full.pkl', 'wb') as f:
             f.write(test_bin)
             
     print('Done')
+    return path2pos
+
+
+def gen_1_frame_data_based_on_5_frame_data(pkl_fp, save_dir, split):
+    with open(pkl_fp, 'rb') as f:
+        data = pickle.load(f)
+
+    path2pos = {}
+    for img_paths, labels in data.items():
+        img_fp = img_paths[-1]
+        pos = labels[-1]
+        path2pos[tuple([img_fp])] = tuple([pos])
+    
+    bin = pickle.dumps(path2pos)
+    with open(f'data/gpu2_{split}_dict_1.pkl', 'wb') as f:
+        f.write(bin)
+
+    return path2pos
+
+
+def gen_3_frame_data_based_on_5_frame_data(pkl_fp, save_dir, split):
+    with open(pkl_fp, 'rb') as f:
+        data = pickle.load(f)
+
+    path2pos = {}
+    for img_paths, labels in data.items():
+        img_paths = img_paths[-3:]
+        ls_pos = labels[-3:]
+        path2pos[tuple(img_paths)] = tuple(ls_pos)
+    
+    bin = pickle.dumps(path2pos)
+    with open(f'data/gpu2_{split}_dict_3.pkl', 'wb') as f:
+        f.write(bin)
+
     return path2pos
 
 
@@ -257,7 +292,7 @@ def gen_data_for_event_cls(ev_data_fp, split):
         ev_data = pickle.load(f)
     all_img_dict = {}
     for res_split in ['train', 'val', 'test']:
-        result_fp = f'results/exp38_centernet_ason_v8n_fixed_mask_ball/{res_split}/result.json'
+        result_fp = f'results/exp71_epoch40/{res_split}/result.json'
         result_data = json.load(open(result_fp))
         all_img_dict.update(result_data['img_dict'])
     # pdb.set_trace()
@@ -277,10 +312,133 @@ def gen_data_for_event_cls(ev_data_fp, split):
             final_dict[tuple(img_paths)] = (ls_pos, labels[1])
     
     bin = pickle.dumps(final_dict)
-    with open(f'data/{split}_event_new_9.pkl', 'wb') as f:
+    out_fp = f'data/exp71_epoch40/{split}_event_new_9.pkl'
+    os.makedirs(os.path.dirname(out_fp), exist_ok=True)
+    with open(out_fp, 'wb') as f:
         f.write(bin)
 
 
+def merge_no_ball_and_ball_dict():
+    n_input_frames = 3
+    for split in ['train', 'val', 'test']:
+        if split != 'test':
+            continue
+
+        with open(f'data/gpu2_{split}_dict_{n_input_frames}.pkl', 'rb') as f:
+            ball_dict = pickle.load(f)
+        with open(f'data/no_ball_{split}_{n_input_frames}.pkl', 'rb') as f:
+            no_ball_dict = pickle.load(f)
+        
+        new_no_ball_dict = {}
+        for img_paths, ls_pos in no_ball_dict.items():
+            new_img_paths = [os.path.join(f'/data2/tungtx2/datn/ttnet/dataset/train/', img_fp) for img_fp in img_paths]
+            new_no_ball_dict[tuple(new_img_paths)] = ls_pos
+        
+        pdb.set_trace()
+
+        ball_dict.update(new_no_ball_dict)
+        bin_dict = pickle.dumps(ball_dict)
+        with open(f'data/gpu2_{split}_dict_{n_input_frames}_add_no_ball_frames.pkl', 'wb') as f:
+            f.write(bin_dict)
+        print(f'Done {split}')
+
+
+def merge_no_ball_and_ball_event_dict():
+    for split in ['train', 'val']:
+        with open(f'data/gpu2_event_{split}_dict_9.pkl', 'rb') as f:
+            ball_dict = pickle.load(f)
+        with open(f'data/no_ball_{split}_event.pkl', 'rb') as f:
+            no_ball_dict = pickle.load(f)
+        
+        new_no_ball_dict = {}
+        for img_paths, annos in no_ball_dict.items():
+            new_img_paths = [os.path.join(f'/data2/tungtx2/datn/ttnet/dataset/train/', img_fp) for img_fp in img_paths]
+            new_no_ball_dict[tuple(new_img_paths)] = annos
+        
+        pdb.set_trace()
+
+        ball_dict.update(new_no_ball_dict)
+        bin_dict = pickle.dumps(ball_dict)
+        with open(f'data/gpu2_event_{split}_dict_9_add_no_ball_frames.pkl', 'wb') as f:
+            f.write(bin_dict)
+        print(f'Done {split}')
+
+
+
+def augment_ball():
+    ball_radius = 15
+    paste_region_limit = (300, 300, 1500, 800)  # xmin, ymin, xmax, ymax
+    num_paste = 3
+    out_dir = 'augment_ball_data'
+    for split in ['train', 'val', 'test']:
+        with open(f'data/gpu2_{split}_dict_5.pkl', 'rb') as f:
+            ball_dict = pickle.load(f)
+        
+        new_ball_dict = {}
+        cnt = 0
+        for img_paths, ls_pos in ball_dict.items():
+            is_valid = True
+            for pos in ls_pos:
+                if any(el<0 for el in pos):
+                    is_valid = False
+                    break
+            if not is_valid:
+                continue
+            new_first_pos = []
+            first_pos = None
+            pasted_imgs = []
+            new_pos = []
+            for img_idx, img_fp in enumerate(img_paths):
+                # get orig img and pos
+                img = cv2.imread(str(img_fp))
+                norm_pos = ls_pos[img_idx]
+                have_ball = norm_pos[0] > 0 and norm_pos[1] > 0
+                if have_ball:
+                    abs_pos = (int(norm_pos[0]*img.shape[1]), int(norm_pos[1]*img.shape[0]))
+                    cx, cy = abs_pos
+                    xmin, ymin, xmax, ymax = cx - ball_radius, cy - ball_radius, cx + ball_radius, cy + ball_radius
+                    ball_img = img[ymin:ymax, xmin:xmax]
+
+                # paste pos
+                if img_idx == 0:
+                    first_pos = abs_pos
+                    for _ in range(num_paste):
+                        new_cx, new_cy = np.random.randint(paste_region_limit[0], paste_region_limit[2]), np.random.randint(paste_region_limit[1], paste_region_limit[3])
+                        try:
+                            img = cv2.seamlessClone(src=ball_img, dst=img, mask=None, p=(new_cx, new_cy), flags=cv2.NORMAL_CLONE)
+                        except Exception as e:
+                            print(e)
+                            pdb.set_trace()
+                        new_first_pos.append((new_cx, new_cy))
+                    pasted_imgs.append(img)
+                else:
+                    pos_diff = (abs_pos[0] - first_pos[0], abs_pos[1] - first_pos[1]) if have_ball else (0, 0)
+                    for first_pos_x, first_pos_y in new_first_pos:
+                        new_cx, new_cy = first_pos_x + pos_diff[0], first_pos_y + pos_diff[1]
+                        try:
+                            img = cv2.seamlessClone(src=ball_img, dst=img, mask=None, p=(new_cx, new_cy), flags=cv2.NORMAL_CLONE)
+                        except Exception as e:
+                            print(e)
+                            pdb.set_trace()
+                    pasted_imgs.append(img)
+                
+
+            # new_paths = []
+            # for i, img in enumerate(pasted_imgs):
+            #     old_fp = img_paths[i]
+            #     fn = old_fp.parent.name + '_' + old_fp.name
+            #     new_fp = os.path.join(out_dir, split, fn)
+            #     os.makedirs(os.path.dirname(new_fp), exist_ok=True)
+            #     cv2.imwrite(new_fp, img)
+            #     new_paths.append(new_fp)
+            # new_ball_dict[tuple(new_paths)] = new_first_pos
+
+            cnt += 1
+            if cnt == 5:
+                for i, img in enumerate(pasted_imgs):
+                    cv2.imwrite(f'pasted_{i}.jpg', img)
+                break
+        break
 
 
 
@@ -288,17 +446,51 @@ def gen_data_for_event_cls(ev_data_fp, split):
 if __name__ == '__main__':
     np.random.seed(42)
 
+    augment_ball()
+
+    # split = 'train'
+    # with open(f'data/gpu2_{split}_dict_3_add_no_ball_frames.pkl', 'rb') as f:
+    #     ball_dict = pickle.load(f)
+    # items = list(ball_dict.items())
+    # print(items[100])
+    # pdb.set_trace()
+
+    # gen_data_for_event_cls('data/gpu2_event_val_dict_9.pkl', 'test')
+
+    # merge_no_ball_and_ball_dict()
+
+    # merge_no_ball_and_ball_event_dict()
+
     # for split in ['train', 'val', 'test']:
     #     ev_data_fp = f'data/gpu2_event_{split}_dict_9.pkl'
     #     gen_data_for_event_cls(ev_data_fp, split)
     
-    split = 'train'
-    with open(f'data/{split}_event_new_9.pkl', 'rb') as f:
-    # with open('data/gpu2_event_test_dict_9.pkl', 'rb') as f:
-        obj = pickle.load(f)
-    items = list(obj.items())
-    print(len(items))
-    pdb.set_trace()
+    # for split in ['train', 'val']:
+    #     n_frames = 9
+    #     fp = f'data/gpu2_event_{split}_dict_{n_frames}_add_no_ball_frames.pkl'
+    #     with open(fp, 'rb') as f:
+    #         obj = pickle.load(f)
+    #     for k, v in obj.items():
+    #         v = list(v)
+    #         ls_pos = list(v[0])
+    #         for i, el in enumerate(ls_pos):
+    #             if any(t<0 for t in el):
+    #                 ls_pos[i] = (-1, -1)
+    #         v[0] = tuple(ls_pos)
+    #         obj[k] = tuple(v)
+        
+    #     pdb.set_trace()
+    #     obj_bin = pickle.dumps(obj)
+    #     with open(fp, 'wb') as f:
+    #         f.write(obj_bin)
+
+    # with open(f'data/gpu2_event_train_dict_9.pkl', 'rb') as f:
+    #     obj = pickle.load(f)
+    # items = list(obj.items())
+    # print(items[0])
+    # print(len(items))
+    # pdb.set_trace()
+
 
 
     # pkl_fp = 'data/gpu2_val_dict_5.pkl'
@@ -306,9 +498,15 @@ if __name__ == '__main__':
     # gen_data_for_ball_detection(pkl_fp, save_dir)
 
 
-    # data_dir = '/data2/tungtx2/datn/ttnet/dataset/test'
-    # n_input_frames = 5
-    # path2pos = create_paths2pos(data_dir, n_input_frames, mode='test')
+    # data_dir = '/data2/tungtx2/datn/ttnet/dataset/train'
+    # n_input_frames = 3
+    # path2pos = create_paths2pos(data_dir, n_input_frames, mode='train')
+
+    # gen_3_frame_data_based_on_5_frame_data(
+    #     pkl_fp='data/gpu2_train_dict_5.pkl',
+    #     save_dir='data',
+    #     split='train'
+    # )
 
     # n_input_frames = 9
     # mode = 'test'
