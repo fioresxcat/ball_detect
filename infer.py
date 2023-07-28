@@ -69,6 +69,7 @@ def infer_unet(model, imgs, kernel, conf_thresh, decode_by_area=False):
 
 
 def infer_centernet(model, imgs, kernel, conf_thresh, decode_by_area=False):
+    
     with torch.no_grad():
         hm, om = model(imgs)
     out_h, out_w = hm.shape[2:]
@@ -136,14 +137,30 @@ if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # device = 'cpu'
     model_type = 'centernet_yolo'
-    ckpt_path = 'ckpt/exp71_centernet_3_frame_add_no_ball_frame/model-epoch=40-train_loss=0.118-val_loss=0.092-val_acc=0.997-val_ev_acc=0.000-val_ev_loss=0.000-val_rmse=0.357.ckpt'
+
+    ckpt_path = 'ckpt/exp82_centernet_5_frames_add_pos_pred_weight_add_no_ball_frame/model-epoch=45-train_loss=0.147-val_loss=0.155-val_acc=0.997-val_ev_acc=0.000-val_ev_loss=0.000-val_rmse=0.339.ckpt'
+
     model_cfg = centernet_yolo_cfg
+    model_cfg.load_pretrained_yolov8 = False
+    model_cfg.in_c = 15
+
+    general_cfg.decode.rmse_thresh = 3
+    general_cfg.data.n_input_frames = 5
+
+    data_type = 'add_no_ball_frames'
+    general_cfg.data.train_dict_path = f'data/gpu2_train_dict_{general_cfg.data.n_input_frames}_{data_type}.pkl'
+    general_cfg.data.val_dict_path = f'data/gpu2_val_dict_{general_cfg.data.n_input_frames}_{data_type}.pkl'
+    general_cfg.data.test_dict_path = f'data/gpu2_test_dict_{general_cfg.data.n_input_frames}_{data_type}.pkl'
 
     for split in ['train', 'val', 'test']:
-        save_dir = f'results/exp71_epoch40_3_frames_full/{split}'
+        if split == 'test':
+            continue
+        save_dir = f'results/{Path(ckpt_path).parent.name}/{split}_{data_type}'
         draw_result = False
-        bs = 48
+        bs = 32
+
         ds = BallDataset(general_cfg=general_cfg, transforms=None, mode=split)
+        print('len dataset: ', len(ds))
 
         model = load_model(
             model_type,
@@ -158,6 +175,7 @@ if __name__ == '__main__':
         os.makedirs(save_dir, exist_ok=True)
 
         sum_rmse, n_true, n_total = 0, 0, 0
+        tp, tn, fp, fn = 0, 0, 0, 0
         res = EasyDict({
             'img_dict': EasyDict({})
         })
@@ -169,6 +187,7 @@ if __name__ == '__main__':
 
             n, c, input_h, input_w = batch_imgs.size()
             batch_pos_true = (batch_normalized_pos * torch.tensor([input_w, input_h])).int()  # abs x, y in cv2 coord with img size 512
+            batch_pos_true = torch.clamp(batch_pos_true, min=0)
             batch_imgs = batch_imgs.to(device)
             batch_img_paths = ds.ls_img_paths[item_idx*bs:(item_idx+1)*bs]
 
@@ -183,8 +202,8 @@ if __name__ == '__main__':
             
             # pdb.set_trace()
             ls_activation.extend(batch_activation.cpu().numpy().tolist())
-            batch_pos_true = batch_pos_true.to(device)
-            batch_pos_pred = batch_pos_pred.to(device)
+            batch_pos_true = batch_pos_true.to(device).to(torch.int)
+            batch_pos_pred = batch_pos_pred.to(device).to(torch.int)
             print('batch_pos_true: ', batch_pos_true)
             print('batch_pos_pred: ', batch_pos_pred)
 

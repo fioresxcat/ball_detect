@@ -88,7 +88,7 @@ class BallDatasetEvent(Dataset):
         last_norm_pos = ls_pos[-1]
         is_masked = False
 
-        if last_norm_pos == (-1, -1):
+        if all(el<0 for el in last_norm_pos):
             out_abs_x, out_abs_y = -100, -100
             is_masked = True
         else:
@@ -115,7 +115,7 @@ class BallDatasetEvent(Dataset):
             # if np.random.rand() < self.general_cfg.training.augment_prob and self.transforms is not None:       # augment
             if False:
                 pass
-                # if last_norm_pos == (-1, -1):
+                # if all(el<0 for el in last_norm_pos):
                 #     input_pos = (0, 0)
                 # else:
                 #     input_pos = (last_norm_pos[0] * self.input_w, last_norm_pos[1] * self.input_h)

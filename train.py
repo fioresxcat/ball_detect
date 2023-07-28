@@ -53,7 +53,7 @@ def train(general_cfg, model_cfg):
     #         ckpt_dir='exp_52_ep_106'
     #     )
     #     print('Successfully loaded weights for only bounce model')
-    # pdb.set_trace()
+    pdb.set_trace()
 
     # callbacks
     model_ckpt = ModelCheckpoint(
@@ -89,8 +89,8 @@ def train(general_cfg, model_cfg):
         max_epochs=general_cfg.training.max_epoch,
         min_epochs=general_cfg.training.min_epoch,
         auto_scale_batch_size=True,
-        # callbacks=[model_ckpt, lr_monitor, early_stop, rich_prog, rich_summary],
-        callbacks=[model_ckpt, lr_monitor, early_stop],
+        callbacks=[model_ckpt, lr_monitor, early_stop, rich_prog, rich_summary],
+        # callbacks=[model_ckpt, lr_monitor, early_stop],
         logger=logger,
         log_every_n_steps=50,
         precision=general_cfg.training.precision,
@@ -114,4 +114,6 @@ if __name__ == '__main__':
 
     if general_cfg.training.multi_ball:
         train(general_cfg, centernet_yolo_multi_ball_cfg)
+    else:
+        train(general_cfg, centernet_yolo_p2_flow_cfg)
 

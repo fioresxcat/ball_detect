@@ -20,10 +20,10 @@ general_cfg = EasyDict({
     },
     
     'training': {
-        'exp_description': 'center_net_3_frames_multi_ball_add_pos_pred_weight_add_no_ball_frame',
+        'exp_description': 'centernet_p2_flow_3_frames_add_pos_pred_weight_add_no_ball_frame',
         'prev_ckpt_path': None,
         'base_lr': 1e-3,
-        'bs': 30,
+        'bs': 16,
         'max_epoch': 100,
         'min_epoch': 30,
         'precision': 16,
@@ -34,7 +34,7 @@ general_cfg = EasyDict({
         'augment': True,
         'augment_prob': 0.7,    # augment image with albumentations
         'mask_ball_prob': 0.1,      # mask black ball
-        'multi_ball': True,
+        'multi_ball': False,
         'add_multi_ball_prob': 0.7,     # paste multi balls onto image
         'num_paste': 3,     # number of balls to paste
         'paste_region_limit': (300, 300, 1500, 800),  # xmin, ymin, xmax, ymax
@@ -42,7 +42,7 @@ general_cfg = EasyDict({
         'weight_decay': 1e-2,
         'use_warmup': False,
         'warmup_ratio': 0,
-        'num_workers': 0
+        'num_workers': 8
     },
 
     'decode': {
@@ -102,6 +102,26 @@ smpdeeplab_cfg = EasyDict({
 
 centernet_yolo_cfg = EasyDict({
     'name': 'centernet_yolo',
+    'version': 'n',
+    'loss': 'centernet_loss',
+    'load_pretrained_yolov8': True,
+    'pos_pred_weight': 2,
+    'reset_optimizer': False,
+})
+
+
+centernet_yolo_p2_cfg = EasyDict({
+    'name': 'centernet_yolo_p2',
+    'version': 'n',
+    'loss': 'centernet_loss',
+    'load_pretrained_yolov8': True,
+    'pos_pred_weight': 2,
+    'reset_optimizer': False,
+})
+
+
+centernet_yolo_p2_flow_cfg = EasyDict({
+    'name': 'centernet_yolo_p2_flow',
     'version': 'n',
     'loss': 'centernet_loss',
     'load_pretrained_yolov8': True,
@@ -182,6 +202,8 @@ smpunet_modified_cfg.in_c = general_cfg.data.n_input_frames * 3
 smpunet_event_cfg.in_c = general_cfg.data.n_input_frames * 3
 smpdeeplab_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_cfg.in_c = general_cfg.data.n_input_frames * 3
+centernet_yolo_p2_cfg.in_c = general_cfg.data.n_input_frames * 3
+centernet_yolo_p2_flow_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_multi_ball_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_event_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_event_only_bounce_cfg.in_c = general_cfg.data.n_input_frames * 3
@@ -194,6 +216,8 @@ smpunet_cfg.output_stride = general_cfg.data.output_stride
 effsmpunet_cfg.output_stride = general_cfg.data.output_stride
 smpdeeplab_cfg.output_stride = general_cfg.data.output_stride
 centernet_yolo_cfg.output_stride = general_cfg.data.output_stride
+centernet_yolo_p2_cfg.output_stride = general_cfg.data.output_stride
+centernet_yolo_p2_flow_cfg.output_stride = general_cfg.data.output_stride
 centernet_yolo_event_cfg.output_stride = general_cfg.data.output_stride
 centernet_yolo_event_only_bounce_cfg.output_stride = general_cfg.data.output_stride
 centernet_hourglass_cfg.output_stride = general_cfg.data.output_stride

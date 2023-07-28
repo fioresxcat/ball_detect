@@ -362,6 +362,48 @@ class CenterNetYolo(BaseCenterNetModel):
         hm_pred, om_pred = self.model(input)
         return hm_pred, om_pred
     
+from test_yolov8_p2 import CenterNetYolov8_P2_Flow, CenterNetYolov8_P2
+class CenterNetYolo_P2_Flow(BaseCenterNetModel):
+    def __init__(self, general_cfg, model_cfg):
+        super(CenterNetYolo_P2_Flow, self).__init__(general_cfg, model_cfg)
+        self.config = model_cfg
+        self._init_layers()
+
+
+    def _init_layers(self):
+        self.model = CenterNetYolov8_P2_Flow(
+            version=self.config.version,
+            nc=1,
+            load_pretrained_yolov8=self.config.load_pretrained_yolov8
+        )
+        self.model.backbone.backbone[0].conv = nn.Conv2d(self.config.in_c, self.model.backbone.backbone[0].conv.out_channels, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+
+
+    def forward(self, input):
+        hm_pred, om_pred = self.model(input)
+        return hm_pred, om_pred
+
+
+class CenterNetYolo_P2(BaseCenterNetModel):
+    def __init__(self, general_cfg, model_cfg):
+        super(CenterNetYolo_P2, self).__init__(general_cfg, model_cfg)
+        self.config = model_cfg
+        self._init_layers()
+
+
+    def _init_layers(self):
+        self.model = CenterNetYolov8_P2(
+            version=self.config.version,
+            nc=1,
+            load_pretrained_yolov8=self.config.load_pretrained_yolov8
+        )
+        self.model.backbone.backbone[0].conv = nn.Conv2d(self.config.in_c, self.model.backbone.backbone[0].conv.out_channels, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+
+
+    def forward(self, input):
+        hm_pred, om_pred = self.model(input)
+        return hm_pred, om_pred
+    
 
 
 class CenterNetYoloMultiBall(BaseCenterNetMultiBallModel):

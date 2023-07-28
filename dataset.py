@@ -82,14 +82,14 @@ class BallDataset(Dataset):
     def __getitem__(self, index):
         img_paths = self.ls_img_paths[index]
         ls_pos = self.ls_ball_pos[index]
-        norm_pos = ls_pos[-1]
+        last_norm_pos = ls_pos[-1]
         is_masked = False
 
-        if norm_pos == (-1, -1):
+        if any(el < 0 for el in last_norm_pos):
             out_abs_x, out_abs_y = -100, -100
             is_masked = True
         else:
-            out_abs_x, out_abs_y = norm_pos[0] * self.output_w, norm_pos[1] * self.output_h
+            out_abs_x, out_abs_y = last_norm_pos[0] * self.output_w, last_norm_pos[1] * self.output_h
 
         # process img
         input_imgs = []
@@ -106,10 +106,10 @@ class BallDataset(Dataset):
                 is_masked = True
 
             if np.random.rand() < self.general_cfg.training.augment_prob and self.transforms is not None:       # augment
-                if norm_pos == (-1, -1):
+                if any(el < 0 for el in last_norm_pos):
                     input_pos = (0, 0)
                 else:
-                    input_pos = (norm_pos[0] * self.input_w, norm_pos[1] * self.input_h) 
+                    input_pos = (last_norm_pos[0] * self.input_w, last_norm_pos[1] * self.input_h) 
 
                 if self.general_cfg.data.n_input_frames == 1:
                     transformed = self.transforms(
@@ -166,9 +166,9 @@ class BallDataset(Dataset):
         offset_map[1, int_y, int_x] = offset_y
 
         out_pos = torch.tensor([int_x, int_y])
-        norm_pos = torch.tensor([out_abs_x, out_abs_y]) / torch.tensor([self.output_w, self.output_h])
+        last_norm_pos = torch.tensor([out_abs_x, out_abs_y]) / torch.tensor([self.output_w, self.output_h])
 
-        return transformed_imgs, heatmap, offset_map, out_pos, norm_pos
+        return transformed_imgs, heatmap, offset_map, out_pos, last_norm_pos
 
 
 

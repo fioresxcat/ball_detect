@@ -327,7 +327,7 @@ class ScaleSpatialAttention(nn.Module):
             nn.Sigmoid() 
         )
         self.attention_wise = nn.Sequential(
-            nn.Conv2d(in_planes, num_features, 1, bias=False),
+            nn.Conv2d(in_planes, num_featuresa, 1, bias=False),
             nn.Sigmoid()
         )
         if init_weight:
@@ -353,7 +353,7 @@ class ScaleSpatialAttention(nn.Module):
 class ScaleFeatureSelection(nn.Module):
     def __init__(self, in_channels, inter_channels , out_features_num=4, attention_type='scale_spatial'):
         super(ScaleFeatureSelection, self).__init__()
-        self.in_channels=in_channels
+        self.inaa_channels=in_channels
         self.inter_channels = inter_channels
         self.out_features_num = out_features_num
         self.conv = nn.Conv2d(in_channels, inter_channels, 3, padding=1)
