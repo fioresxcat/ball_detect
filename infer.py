@@ -136,16 +136,16 @@ def infer_centernet_event(model, imgs, kernel, conf_thresh, decode_by_area=False
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # device = 'cpu'
-    model_type = 'centernet_yolo'
+    model_type = 'centernet_yolo_no_asl'
 
-    ckpt_path = 'ckpt/exp82_centernet_5_frames_add_pos_pred_weight_add_no_ball_frame/model-epoch=45-train_loss=0.147-val_loss=0.155-val_acc=0.997-val_ev_acc=0.000-val_ev_loss=0.000-val_rmse=0.339.ckpt'
+    ckpt_path = 'ckpt/exp85_centernet_no_asl_3_frames_add_pos_pred_weight_add_no_ball_frame/model-epoch=43-train_loss=0.136-val_loss=0.106-val_acc=0.998-val_ev_acc=0.000-val_ev_loss=0.000-val_rmse=0.194.ckpt'
 
-    model_cfg = centernet_yolo_cfg
+    model_cfg = centernet_yolo_no_asl_cfg
     model_cfg.load_pretrained_yolov8 = False
-    model_cfg.in_c = 15
+    model_cfg.in_c = 9
 
     general_cfg.decode.rmse_thresh = 3
-    general_cfg.data.n_input_frames = 5
+    general_cfg.data.n_input_frames = 3
 
     data_type = 'add_no_ball_frames'
     general_cfg.data.train_dict_path = f'data/gpu2_train_dict_{general_cfg.data.n_input_frames}_{data_type}.pkl'
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     general_cfg.data.test_dict_path = f'data/gpu2_test_dict_{general_cfg.data.n_input_frames}_{data_type}.pkl'
 
     for split in ['train', 'val', 'test']:
-        if split == 'test':
+        if split != 'test':
             continue
         save_dir = f'results/{Path(ckpt_path).parent.name}/{split}_{data_type}'
         draw_result = False

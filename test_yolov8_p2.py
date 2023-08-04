@@ -637,21 +637,39 @@ class Neck(nn.Module):
 
         self.concat_attention = ScaleFeatureSelection(inner_channels, c, 3, attention_type='scale_channel_spatial')
         
-        # self.ia = ImplicitA(c*3)
-        # self.ims = nn.ModuleList([ImplicitM(c) for i in range(3)])
 
     def forward(self, features):
         out15, out18, out21 = features
         up1 = self.in1(self.up1(out21))
         up2 = self.in2(self.up2(out18))
         up3 = self.in3(self.up3(out15))
-        
-        # fuse = torch.cat((self.ims[0](up1), self.ims[1](up2), self.ims[2](up3)), 1)
         fuse = torch.cat((up3, up2, up1), 1)
-        # fuse = self.concat_attention(fuse, [up3, up2, up1])
-        # fuse = self.ims[0](up1) + self.ims[1](up2) + self.ims[2](up3)
-        # fuse = self.ia(fuse)
+        fuse = self.concat_attention(fuse, [up3, up2, up1])
         return fuse
+
+
+class Neck_No_ASL(nn.Module):
+    def __init__(self, in_channels=[64, 128, 256, 512],
+                 inner_channels=192):
+        super().__init__()
+        c = inner_channels // 3
+        
+        self.up1 = nn.Upsample(scale_factor=8, mode='bilinear')
+        self.up2 = nn.Upsample(scale_factor=4, mode='bilinear')
+        self.up3 = nn.Upsample(scale_factor=2, mode='bilinear')
+        
+        self.in1 = Conv(in_channels[2], c, k=1) #for layer21
+        self.in2 = Conv(in_channels[1], c, k=1) #for layer18
+        self.in3 = Conv(in_channels[0], c, k=1) #for layer15
+
+    def forward(self, features):
+        out15, out18, out21 = features
+        up1 = self.in1(self.up1(out21))
+        up2 = self.in2(self.up2(out18))
+        up3 = self.in3(self.up3(out15))
+        fuse = torch.cat((up3, up2, up1), 1)
+        return fuse
+
 
 class IHead(nn.Module):
     def __init__(self, c, nc=1) -> None:
@@ -822,7 +840,31 @@ class CenterNetYolov8(nn.Module):
         """
         bn = tuple(v for k, v in nn.__dict__.items() if 'Norm' in k)  # normalization layers, i.e. BatchNorm2d()
         return sum(isinstance(v, bn) for v in self.modules()) < thresh  # True if < 'thresh' BatchNorm layers in model
-    
+
+
+class CenterNetYolov8_No_ASL(CenterNetYolov8):
+    def __init__(self, version='n', nc=1, load_pretrained_yolov8=False):
+        super().__init__(version, nc, load_pretrained_yolov8)
+
+        self.version = version
+        scales = dict(
+            # [depth, width, max_channels]
+            n= [0.33, 0.25, 1024],  # YOLOv8n summary: 225 layers,  3157200 parameters,  3157184 gradients,   8.9 GFLOPs
+            s= [0.33, 0.50, 1024],  # YOLOv8s summary: 225 layers, 11166560 parameters, 11166544 gradients,  28.8 GFLOPs
+            m= [0.67, 0.75, 768],   # YOLOv8m summary: 295 layers, 25902640 parameters, 25902624 gradients,  79.3 GFLOPs
+            l= [1.00, 1.00, 512],   # YOLOv8l summary: 365 layers, 43691520 parameters, 43691504 gradients, 165.7 GFLOPs
+            x= [1.00, 1.25, 512],   # YOLOv8x summary: 365 layers, 68229648 parameters, 68229632 gradients, 258.5 GFLOPs
+        )
+        gd, gw, max_channels = scales[version]
+        ch = [make_divisible(c_*gw, 8) for c_ in [64, 128, 256, 512, max_channels]] #16, 32, 64, 128, 256
+        self.ch = ch
+
+        self.backbone = Backbone(version, load_pretrained=load_pretrained_yolov8)
+        inner_channels = ch[2]*3
+        self.neck = Neck_No_ASL(ch[2:], inner_channels)
+        self.head = IHead(ch[2], nc)
+
+
 class CenterNetYolov8_P2(CenterNetYolov8):
     def __init__(self, version='n', nc=1, load_pretrained_yolov8=False):
         super().__init__(version, nc, load_pretrained_yolov8)
@@ -845,6 +887,30 @@ class CenterNetYolov8_P2(CenterNetYolov8):
         self.neck = Neck(ch[1:], inner_channels)
         self.head = IHead(ch[1], nc)
         # pdb.set_trace()
+       
+class CenterNetYolov8_P2_No_ASL(CenterNetYolov8):
+    def __init__(self, version='n', nc=1, load_pretrained_yolov8=False):
+        super().__init__(version, nc, load_pretrained_yolov8)
+
+        self.version = version
+        scales = dict(
+            # [depth, width, max_channels]
+            n= [0.33, 0.25, 512],  # YOLOv8n summary: 225 layers,  3157200 parameters,  3157184 gradients,   8.9 GFLOPs
+            s= [0.33, 0.50, 1024],  # YOLOv8s summary: 225 layers, 11166560 parameters, 11166544 gradients,  28.8 GFLOPs
+            m= [0.67, 0.75, 768],   # YOLOv8m summary: 295 layers, 25902640 parameters, 25902624 gradients,  79.3 GFLOPs
+            l= [1.00, 1.00, 512],   # YOLOv8l summary: 365 layers, 43691520 parameters, 43691504 gradients, 165.7 GFLOPs
+            x= [1.00, 1.25, 512],   # YOLOv8x summary: 365 layers, 68229648 parameters, 68229632 gradients, 258.5 GFLOPs
+        )
+        gd, gw, max_channels = scales[version]
+        ch = [make_divisible(c_*gw, 8) for c_ in [64, 128, 256, max_channels]] #16, 32, 64, 128
+        self.ch = ch
+
+        self.backbone = Backbone_P2(version, load_pretrained=load_pretrained_yolov8)
+        inner_channels = ch[1]*3
+        self.neck = Neck_No_ASL(ch[1:], inner_channels)
+        self.head = IHead(ch[1], nc)
+        # pdb.set_trace()
+
 
 class CenterNetYolov8_P2_Flow(CenterNetYolov8):
     def __init__(self, version='n', nc=1, load_pretrained_yolov8=False):
@@ -889,53 +955,50 @@ if __name__ == '__main__':
     from ultralytics import YOLO
     import pdb
 
-    # model = YOLO('yolov8.yaml')
-    # pdb.set_trace()
 
-    # model = CenterNetYolov8(version='n', nc=1, load_pretrained_yolov8=True)
-    # x = torch.randn(1, 3, 512, 512)
-    # feats = model.backbone(x)
-    # print('feat shape: ', [feat.shape for feat in feats])
-    # pdb.set_trace()
-    # fuse = model.neck(feats)
-    # print('fuse shape: ', fuse.shape)
-    # out = model.head(fuse)
-    # print('out shape: ', out.shape)
-    # pdb.set_trace()
-
-    model = CenterNetYolov8()
-    pdb.set_trace()
-
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    # device = 'cuda'
-    model.eval().to(device)
+    device = 'cuda'
     x = torch.rand(1, 3, 640, 640, device=device)
-
     ls_time = []
 
-    for i in range(100):
-        out = model(x)
+    # # --- yolov8 goc ----
+    # model = YOLO('yolov8.yaml')
+    # for i in range(1000):
+    #     start = time.perf_counter()
+    #     feats = model(x)
+    #     tmp = time.perf_counter()-start
+    #     print('time: ', tmp)
+    #     ls_time.append(tmp)
 
+    # mean_time = np.mean(ls_time)
+    # print(mean_time)
+
+    # ------ yolov8 custom ------
+    model = CenterNetYolov8()
+    model = model.eval().to(device)
     for i in range(1000):
+        tmp = 0
+
         start = time.perf_counter()
         feats = model.backbone(x)
+        print(feats.shape)
         cur_time = time.perf_counter()-start
-        ls_time.append(cur_time)
-        print('time backbone: ', cur_time)
+        tmp += cur_time
+        # print('time backbone: ', cur_time)
 
         start = time.perf_counter()
         fuse = model.neck(feats)
         cur_time = time.perf_counter()-start
-        ls_time.append(cur_time)
+        tmp += cur_time
         print('time neck: ', cur_time)
     
-        start = time.perf_counter()
-        feats = model.head(fuse)
-        cur_time = time.perf_counter()-start
-        ls_time.append(cur_time)
-        print('time head: ', cur_time)
+        # start = time.perf_counter()
+        # feats = model.head(fuse)
+        # cur_time = time.perf_counter()-start
+        # tmp += cur_time
+        # print('time head: ', cur_time)
         
-        print()
+        # print('time: ', tmp)
+        # ls_time.append(tmp)
     
     mean_time = np.mean(ls_time)
     print(mean_time)

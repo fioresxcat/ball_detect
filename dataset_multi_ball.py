@@ -94,7 +94,8 @@ class MultiBallDataset(Dataset):
 
         # process img
         input_imgs = []
-        add_multi_ball = self.mode == 'train' and np.random.rand() < self.general_cfg.training.add_multi_ball_prob and num_valid_pos == len(ls_norm_pos)
+        # add_multi_ball = self.mode == 'train' and np.random.rand() < self.general_cfg.training.add_multi_ball_prob and num_valid_pos == len(ls_norm_pos)
+        add_multi_ball = num_valid_pos == len(ls_norm_pos)
 
         # add_multi_ball = num_valid_pos == len(ls_norm_pos)
         if add_multi_ball:
@@ -122,6 +123,8 @@ class MultiBallDataset(Dataset):
                         new_cx, new_cy = np.random.randint(self.paste_region_limit[0], self.paste_region_limit[2]), np.random.randint(self.paste_region_limit[1], self.paste_region_limit[3])
                         try:
                             orig_img = cv2.seamlessClone(src=ball_img, dst=orig_img, mask=None, p=(new_cx, new_cy), flags=cv2.MONOCHROME_TRANSFER)
+                            # draw a red circle
+                            cv2.circle(orig_img, (new_cx, new_cy), 15, (255, 0, 0), 3)
                         except Exception as e:
                             imgs = torch.zeros(size=(3*len(img_paths), self.input_h, self.input_w), dtype=torch.float32)
                             heatmap = torch.zeros(size=(self.output_h, self.output_w), dtype=torch.float32)
@@ -141,6 +144,8 @@ class MultiBallDataset(Dataset):
                         new_cx, new_cy = first_pos_x + pos_diff[0], first_pos_y + pos_diff[1]
                         try:
                             orig_img = cv2.seamlessClone(src=ball_img, dst=orig_img, mask=None, p=(new_cx, new_cy), flags=cv2.MONOCHROME_TRANSFER)
+                            cv2.circle(orig_img, (new_cx, new_cy), 15, (255, 0, 0), 3)
+
                         except Exception as e:
                             imgs = torch.zeros(size=(3*len(img_paths), self.input_h, self.input_w), dtype=torch.float32)
                             heatmap = torch.zeros(size=(self.output_h, self.output_w), dtype=torch.float32)
@@ -154,6 +159,9 @@ class MultiBallDataset(Dataset):
                         ls_new_norm_pos[img_idx].append((new_cx/orig_img.shape[1], new_cy/orig_img.shape[0]))
                         # print(f'ls_new_norm_pos[{img_idx}] append')
 
+                # save down
+                Image.fromarray(orig_img).save(f'pasted.png')
+                pdb.set_trace()
 
             resized_img = cv2.resize(orig_img, (self.input_w, self.input_h))
             input_imgs.append(resized_img)
@@ -352,3 +360,11 @@ if __name__ == '__main__':
         transformed_imgs, heatmap, offset_map = item
         if i == 100:
             break
+
+        # imgs = transformed_imgs[0]
+        # img = imgs[:3, :, :]
+        # img = img.permute(1, 2, 0).numpy()
+        # img = (img*255).astype(np.uint8)
+        # print(img.shape)
+        # Image.fromarray(img).save('a.jpg')
+        # pdb.set_trace()

@@ -13,7 +13,7 @@ from my_utils import *
 from config import general_cfg
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, EarlyStopping, RichProgressBar, RichModelSummary
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning import Trainer
 import shutil
 import pdb
@@ -53,7 +53,7 @@ def train(general_cfg, model_cfg):
     #         ckpt_dir='exp_52_ep_106'
     #     )
     #     print('Successfully loaded weights for only bounce model')
-    pdb.set_trace()
+    # pdb.set_trace()
 
     # callbacks
     model_ckpt = ModelCheckpoint(
@@ -76,9 +76,9 @@ def train(general_cfg, model_cfg):
     rich_summary = RichModelSummary()
 
     # tensorboard logger
-    logger = TensorBoardLogger(
+    logger = WandbLogger(
         save_dir=experiment_dir,
-        name='',
+        name=general_cfg.training.exp_description,
         version=''
     )
     
@@ -112,8 +112,8 @@ def train(general_cfg, model_cfg):
 if __name__ == '__main__':
     from config import *
 
-    if general_cfg.training.multi_ball:
-        train(general_cfg, centernet_yolo_multi_ball_cfg)
-    else:
-        train(general_cfg, centernet_yolo_p2_flow_cfg)
+    # if general_cfg.training.multi_ball:
+    #     train(general_cfg, centernet_yolo_multi_ball_cfg)
+    # else:
+    train(general_cfg, centernet_yolo_no_asl_cfg)
 

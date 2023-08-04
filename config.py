@@ -7,10 +7,10 @@ general_cfg = EasyDict({
         'test_dir':'/data/tungtx2/datn/ttnet/dataset/test',
         'n_sample_limit': 1e9,
         'orig_size': (1920, 1080),
-        'input_size': (512, 512),
-        'ball_radius': (7, 7),
+        'input_size': (640, 640),
+        'ball_radius': (7, 7),   # estimated ball radius on 512 x 512 input frame
         'orig_ball_radius': (15, 15),
-        'mask_radius': (10, 10),
+        'mask_radius': (10, 10),    # estimated mask ball radius on 512 x 512 input frame. Bigger than ball radius for surely mask the ball
         'n_input_frames': 3,
         'train_event': False,
         'only_bounce': False,
@@ -20,7 +20,7 @@ general_cfg = EasyDict({
     },
     
     'training': {
-        'exp_description': 'centernet_p2_flow_3_frames_add_pos_pred_weight_add_no_ball_frame',
+        'exp_description': 'centernet_no_asl_640',
         'prev_ckpt_path': None,
         'base_lr': 1e-3,
         'bs': 16,
@@ -32,7 +32,7 @@ general_cfg = EasyDict({
 
         'shuffle_train': True,
         'augment': True,
-        'augment_prob': 0.7,    # augment image with albumentations
+        'augment_prob': 0.5,    # augment image with albumentations
         'mask_ball_prob': 0.1,      # mask black ball
         'multi_ball': False,
         'add_multi_ball_prob': 0.7,     # paste multi balls onto image
@@ -42,11 +42,11 @@ general_cfg = EasyDict({
         'weight_decay': 1e-2,
         'use_warmup': False,
         'warmup_ratio': 0,
-        'num_workers': 8
+        'num_workers': 0
     },
 
     'decode': {
-        'kernel': 3,
+        'kernel': 3.5,
         'conf_thresh': 0.5,
         'rmse_thresh': 3,   # on 512 x 512 input
         'decode_by_area': False,
@@ -102,6 +102,15 @@ smpdeeplab_cfg = EasyDict({
 
 centernet_yolo_cfg = EasyDict({
     'name': 'centernet_yolo',
+    'version': 'n',
+    'loss': 'centernet_loss',
+    'load_pretrained_yolov8': True,
+    'pos_pred_weight': 2,
+    'reset_optimizer': False,
+})
+
+centernet_yolo_no_asl_cfg = EasyDict({
+    'name': 'centernet_yolo_no_asl',
     'version': 'n',
     'loss': 'centernet_loss',
     'load_pretrained_yolov8': True,
@@ -202,6 +211,7 @@ smpunet_modified_cfg.in_c = general_cfg.data.n_input_frames * 3
 smpunet_event_cfg.in_c = general_cfg.data.n_input_frames * 3
 smpdeeplab_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_cfg.in_c = general_cfg.data.n_input_frames * 3
+centernet_yolo_no_asl_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_p2_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_p2_flow_cfg.in_c = general_cfg.data.n_input_frames * 3
 centernet_yolo_multi_ball_cfg.in_c = general_cfg.data.n_input_frames * 3
@@ -216,6 +226,7 @@ smpunet_cfg.output_stride = general_cfg.data.output_stride
 effsmpunet_cfg.output_stride = general_cfg.data.output_stride
 smpdeeplab_cfg.output_stride = general_cfg.data.output_stride
 centernet_yolo_cfg.output_stride = general_cfg.data.output_stride
+centernet_yolo_no_asl_cfg.output_stride = general_cfg.data.output_stride
 centernet_yolo_p2_cfg.output_stride = general_cfg.data.output_stride
 centernet_yolo_p2_flow_cfg.output_stride = general_cfg.data.output_stride
 centernet_yolo_event_cfg.output_stride = general_cfg.data.output_stride

@@ -749,10 +749,12 @@ if __name__ == '__main__':
     from models.unet import EffSmpUnet
     import json
     from easydict import EasyDict as edict
-    
+    from ultralytics import YOLO
 
     #------------------------ yolov8 ----------------------------
-    model = CenterNetYolov8()
+    # model = CenterNetYolov8()
+    model = 
+    # model = YOLO('yolov8n.pt')
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.eval().to(device)

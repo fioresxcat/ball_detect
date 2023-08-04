@@ -195,6 +195,22 @@ class BallDataModule(pl.LightningDataModule):
                 additional_targets=add_target,
                 keypoint_params=A.KeypointParams(format='xy', remove_invisible=True)
             )
+
+            # self.transforms = A.Compose(
+            #     A.SomeOf([
+            #         A.GaussNoise(p=0.5, var_limit=(10.0, 50.0), mean=0, per_channel=True, always_apply=False),
+            #         A.HorizontalFlip(p=0.5),
+            #         A.ShiftScaleRotate(p=0.5, shift_limit=0.1, scale_limit=0.12, rotate_limit=7, border_mode=cv2.BORDER_REPLICATE, value=0),
+            #         A.ColorJitter(p=0.5, brightness=0.15, contrast=0.15, saturation=0.15, hue=0.07, always_apply=False),
+            #         A.SafeRotate(p=0.5, limit=7, border_mode=cv2.BORDER_CONSTANT, value=0),
+            #         # A.ElasticTransform(p=0.5, alpha=1, sigma=50, alpha_affine=30, border_mode=cv2.BORDER_REPLICATE, value=0),
+            #         A.Perspective(p=0.5, scale=(0.05, 0.1), keep_size=True, fit_output=True, pad_mode=cv2.BORDER_REPLICATE),
+            #         A.Affine(p=0.5, scale=(0.8, 1.15), translate_percent=(0, 0.1), rotate=(-7, 7), shear=(-10, 10), mode=cv2.BORDER_REPLICATE)
+            #     ], n=3),
+            #     additional_targets=add_target,
+            #     keypoint_params=A.KeypointParams(format='xy', remove_invisible=True)
+            # )
+
         else:
             self.transforms = None
 

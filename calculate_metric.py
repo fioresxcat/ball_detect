@@ -130,6 +130,6 @@ if __name__ == '__main__':
     # )
 
     calculate_metric(
-        res_fp='/data2/tungtx2/datn/ball_detect/results/exp82_centernet_5_frames_add_pos_pred_weight_add_no_ball_frame/test_add_no_ball_frames/result.json',
+        res_fp='/data2/tungtx2/datn/ball_detect/results/exp85_centernet_no_asl_3_frames_add_pos_pred_weight_add_no_ball_frame/test_add_no_ball_frames/result.json',
         rmse_thresh=3,
     )
